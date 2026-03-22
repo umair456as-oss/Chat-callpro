@@ -1,0 +1,5 @@
+{
+  "name": "Alpha Chat",
+  "description": "A WhatsApp-style chat application with integrated earning games, wallet system, and admin panel.",
+  "requestFramePermissions": []
+}

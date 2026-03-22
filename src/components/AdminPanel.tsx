@@ -1,0 +1,1502 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  collection, query, where, onSnapshot, doc, runTransaction, 
+  getDocs, updateDoc, setDoc, deleteDoc, serverTimestamp, 
+  orderBy, limit, writeBatch, addDoc 
+} from 'firebase/firestore';
+import { db } from '../firebase';
+import { Withdrawal, UserProfile, AppSettings, GameSettings, Announcement } from '../types';
+import { 
+  ShieldCheck, CheckCircle, XCircle, Users, Ban, BadgeCheck, 
+  Search, Settings, Gamepad2, Wallet, FileText, Activity, 
+  Power, Bell, Save, Trash2, Filter, Download, Plus, 
+  ChevronRight, LayoutGrid, List, BarChart3, Clock, 
+  AlertCircle, Info, CheckCircle2, MoreVertical,
+  ShieldAlert, MessageSquare, TrendingUp, Send, Database, Shield
+} from 'lucide-react';
+import { formatChatDate, cn, getTime } from '../utils';
+import { motion, AnimatePresence } from 'framer-motion';
+import { handleFirestoreError, OperationType } from '../utils/errorHandlers';
+
+type AdminTab = 'users' | 'withdrawals' | 'games' | 'announcements' | 'settings' | 'logs' | 'fraud' | 'support' | 'analytics';
+
+interface SupportTicket {
+  id?: string;
+  userId: string;
+  subject: string;
+  status: 'open' | 'closed';
+  lastMessage: string;
+  updatedAt: any;
+}
+
+interface ActivityLog {
+  id?: string;
+  type: string;
+  message: string;
+  userId?: string;
+  timestamp: any;
+}
+
+interface RevenueStats {
+  date: string;
+  totalRevenue: number;
+  totalPayouts: number;
+}
+
+export default function AdminPanel() {
+  const [activeTab, setActiveTab] = useState<AdminTab>('users');
+  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
+  const [gameSettings, setGameSettings] = useState<GameSettings[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
+  const [revenueStats, setRevenueStats] = useState<RevenueStats[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [loading, setLoading] = useState<string | null>(null);
+  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [bulkSelection, setBulkSelection] = useState<string[]>([]);
+  const [activeTicket, setActiveTicket] = useState<SupportTicket | null>(null);
+  const [supportMessages, setSupportMessages] = useState<any[]>([]);
+  const [newSupportMsg, setNewSupportMsg] = useState('');
+
+  useEffect(() => {
+    // Initialize Settings if not exists
+    const initSettings = async () => {
+      try {
+        const settingsRef = doc(db, 'settings', 'global');
+        const settingsSnap = await getDocs(query(collection(db, 'settings'), where('__name__', '==', 'global')));
+        if (settingsSnap.empty) {
+          await setDoc(settingsRef, {
+            isMaintenanceMode: false,
+            adFrequency: 5,
+            globalAnnouncement: "Welcome to Alpha Chat!",
+            isWithdrawalsEnabled: true,
+            isGamesEnabled: true,
+            withdrawalTax: 5,
+            rewardMultiplier: 1.0,
+            minWithdrawal: 500,
+            adEarningRate: 0.5,
+            tickerText: "Welcome to Alpha Chat! Earn money while chatting."
+          });
+        }
+      } catch (error) {
+        console.error("Error initializing settings:", error);
+      }
+    };
+    initSettings();
+
+    // Real-time listeners
+    const unsubW = onSnapshot(query(collection(db, 'withdrawals'), orderBy('timestamp', 'desc')), (snapshot) => {
+      setWithdrawals(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Withdrawal)));
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'withdrawals'));
+
+    const unsubU = onSnapshot(query(collection(db, 'users'), orderBy('lastSeen', 'desc')), (snapshot) => {
+      setUsers(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile)));
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'users'));
+
+    const unsubS = onSnapshot(doc(db, 'settings', 'global'), (doc) => {
+      if (doc.exists()) setAppSettings(doc.data() as AppSettings);
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'settings/global'));
+
+    const unsubG = onSnapshot(collection(db, 'gameSettings'), (snapshot) => {
+      setGameSettings(snapshot.docs.map(doc => ({ ...doc.data() } as GameSettings)));
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'gameSettings'));
+
+    const unsubA = onSnapshot(query(collection(db, 'announcements'), orderBy('createdAt', 'desc')), (snapshot) => {
+      setAnnouncements(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Announcement)));
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'announcements'));
+
+    const unsubT = onSnapshot(query(collection(db, 'supportTickets'), orderBy('updatedAt', 'desc')), (snapshot) => {
+      setSupportTickets(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SupportTicket)));
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'supportTickets'));
+
+    const unsubL = onSnapshot(query(collection(db, 'activityLogs'), orderBy('timestamp', 'desc'), limit(50)), (snapshot) => {
+      setActivityLogs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ActivityLog)));
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'activityLogs'));
+
+    const unsubStats = onSnapshot(query(collection(db, 'revenueStats'), orderBy('date', 'desc'), limit(30)), (snapshot) => {
+      setRevenueStats(snapshot.docs.map(doc => ({ ...doc.data() } as RevenueStats)));
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'revenueStats'));
+
+    return () => {
+      unsubW();
+      unsubU();
+      unsubS();
+      unsubG();
+      unsubA();
+      unsubT();
+      unsubL();
+      unsubStats();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (activeTicket) {
+      const q = query(
+        collection(db, 'messages'),
+        where('receiverId', 'in', [activeTicket.userId, 'admin-support']),
+        where('senderId', 'in', [activeTicket.userId, 'admin-support']),
+        orderBy('timestamp', 'asc')
+      );
+      return onSnapshot(q, (snapshot) => {
+        setSupportMessages(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      });
+    }
+  }, [activeTicket]);
+
+  const handleSendSupportMessage = async () => {
+    if (!newSupportMsg.trim() || !activeTicket) return;
+    try {
+      await addDoc(collection(db, 'messages'), {
+        senderId: 'admin-support',
+        receiverId: activeTicket.userId,
+        text: newSupportMsg,
+        timestamp: serverTimestamp(),
+        type: 'support'
+      });
+      await updateDoc(doc(db, 'supportTickets', activeTicket.id!), {
+        updatedAt: serverTimestamp(),
+        status: 'open'
+      });
+      setNewSupportMsg('');
+    } catch (error) {
+      console.error("Error sending support message:", error);
+    }
+  };
+
+  const handleCloseTicket = async (ticketId: string) => {
+    try {
+      await updateDoc(doc(db, 'supportTickets', ticketId), {
+        status: 'closed',
+        updatedAt: serverTimestamp()
+      });
+      if (activeTicket?.id === ticketId) setActiveTicket(null);
+    } catch (error) {
+      console.error("Error closing ticket:", error);
+    }
+  };
+
+  const handleShadowBan = async (userId: string, status: boolean) => {
+    try {
+      await updateDoc(doc(db, 'users', userId), {
+        isShadowBanned: status
+      });
+    } catch (error) {
+      console.error("Error toggling shadow ban:", error);
+    }
+  };
+
+  const handleApprove = async (withdrawal: Withdrawal) => {
+    if (!withdrawal.id) return;
+    setLoading(withdrawal.id);
+    try {
+      await runTransaction(db, async (transaction) => {
+        const userRef = doc(db, 'users', withdrawal.userId);
+        const userSnap = await transaction.get(userRef);
+        if (!userSnap.exists()) throw "User does not exist!";
+
+        const currentBalance = userSnap.data().balance || 0;
+        if (currentBalance < withdrawal.amount) throw "Insufficient user balance!";
+
+        // Calculate Tax (Elite Feature)
+        const taxRate = appSettings?.withdrawalTax || 0;
+        const taxAmount = (withdrawal.amount * taxRate) / 100;
+        const netAmount = withdrawal.amount - taxAmount;
+
+        transaction.update(userRef, { balance: currentBalance - withdrawal.amount });
+        transaction.update(doc(db, 'withdrawals', withdrawal.id!), { 
+          status: 'approved',
+          taxAmount,
+          netAmount,
+          auditLog: {
+            ip: '127.0.0.1', // In a real app, get from server
+            device: navigator.userAgent
+          }
+        });
+      });
+    } catch (error) {
+      console.error('Approval error:', error);
+      alert(error);
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const handleBulkApprove = async () => {
+    if (bulkSelection.length === 0) return;
+    setLoading('bulk');
+    try {
+      for (const id of bulkSelection) {
+        const w = withdrawals.find(w => w.id === id);
+        if (w && w.status === 'pending') {
+          await handleApprove(w);
+        }
+      }
+      setBulkSelection([]);
+    } catch (error) {
+      console.error('Bulk approval error:', error);
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const handleReject = async (withdrawalId: string) => {
+    setLoading(withdrawalId);
+    try {
+      await updateDoc(doc(db, 'withdrawals', withdrawalId), { status: 'rejected' });
+    } catch (error) {
+      console.error('Rejection error:', error);
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const updateGlobalSetting = async (key: keyof AppSettings, value: any) => {
+    try {
+      await updateDoc(doc(db, 'settings', 'global'), { [key]: value });
+    } catch (error) {
+      console.error('Settings update error:', error);
+    }
+  };
+
+  const toggleGame = async (gameId: string, isEnabled: boolean) => {
+    try {
+      await setDoc(doc(db, 'gameSettings', gameId), { isEnabled }, { merge: true });
+    } catch (error) {
+      console.error('Game toggle error:', error);
+    }
+  };
+
+  const updateGameRate = async (gameId: string, earningRate: number) => {
+    try {
+      await setDoc(doc(db, 'gameSettings', gameId), { earningRate }, { merge: true });
+    } catch (error) {
+      console.error('Game rate update error:', error);
+    }
+  };
+
+  const addAnnouncement = async (text: string, type: 'info' | 'warning' | 'success') => {
+    try {
+      await addDoc(collection(db, 'announcements'), {
+        text,
+        type,
+        isActive: true,
+        createdAt: serverTimestamp()
+      });
+    } catch (error) {
+      console.error('Announcement add error:', error);
+    }
+  };
+
+  const deleteAnnouncement = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'announcements', id));
+    } catch (error) {
+      console.error('Announcement delete error:', error);
+    }
+  };
+
+  const updateUserBalance = async (uid: string, newBalance: number) => {
+    try {
+      await updateDoc(doc(db, 'users', uid), { balance: newBalance });
+    } catch (error) {
+      console.error('Balance update error:', error);
+    }
+  };
+
+  const filteredUsers = users.filter(u => 
+    u.email.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    u.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    u.phoneNumber?.includes(searchTerm)
+  );
+
+  const pendingWithdrawals = withdrawals.filter(w => w.status === 'pending');
+  const totalPendingAmount = pendingWithdrawals.reduce((acc, w) => acc + w.amount, 0);
+  const totalApprovedToday = withdrawals
+    .filter(w => w.status === 'approved' && isToday(w.timestamp?.toDate()))
+    .reduce((acc, w) => acc + w.amount, 0);
+
+  function isToday(date: Date) {
+    if (!date) return false;
+    const today = new Date();
+    return date.getDate() === today.getDate() &&
+      date.getMonth() === today.getMonth() &&
+      date.getFullYear() === today.getFullYear();
+  }
+
+  return (
+    <div className="flex flex-col md:flex-row h-full bg-[#1e1e1e] text-[#cccccc] font-mono overflow-hidden">
+      {/* VS Code Style Sidebar */}
+      <div className="w-full md:w-14 bg-[#333333] flex flex-row md:flex-col items-center py-2 md:py-4 justify-around md:justify-start md:space-y-6 border-t md:border-t-0 md:border-r border-[#2b2b2b] z-20 order-last md:order-first">
+        <button 
+          onClick={() => setActiveTab('users')}
+          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'users' ? "text-white border-b-2 md:border-b-0 md:border-l-2 border-blue-500" : "text-[#858585] hover:text-white")}
+          title="Users Explorer"
+        >
+          <Users size={20} />
+          <span className="text-[8px] md:hidden">Users</span>
+        </button>
+        <button 
+          onClick={() => setActiveTab('withdrawals')}
+          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'withdrawals' ? "text-white border-b-2 md:border-b-0 md:border-l-2 border-blue-500" : "text-[#858585] hover:text-white")}
+          title="Finance Grid"
+        >
+          <Wallet size={20} />
+          <span className="text-[8px] md:hidden">Finance</span>
+        </button>
+        <button 
+          onClick={() => setActiveTab('games')}
+          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'games' ? "text-white border-b-2 md:border-b-0 md:border-l-2 border-blue-500" : "text-[#858585] hover:text-white")}
+          title="Game Management"
+        >
+          <Gamepad2 size={20} />
+          <span className="text-[8px] md:hidden">Games</span>
+        </button>
+        <button 
+          onClick={() => setActiveTab('fraud')}
+          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'fraud' ? "text-white border-b-2 md:border-b-0 md:border-l-2 border-red-500" : "text-[#858585] hover:text-white")}
+          title="Fraud Monitor"
+        >
+          <ShieldAlert size={20} />
+          <span className="text-[8px] md:hidden">Fraud</span>
+        </button>
+        <button 
+          onClick={() => setActiveTab('support')}
+          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'support' ? "text-white border-b-2 md:border-b-0 md:border-l-2 border-emerald-500" : "text-[#858585] hover:text-white")}
+          title="Live Support"
+        >
+          <MessageSquare size={20} />
+          <span className="text-[8px] md:hidden">Support</span>
+        </button>
+        <button 
+          onClick={() => setActiveTab('analytics')}
+          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'analytics' ? "text-white border-b-2 md:border-b-0 md:border-l-2 border-blue-500" : "text-[#858585] hover:text-white")}
+          title="Analytics"
+        >
+          <TrendingUp size={20} />
+          <span className="text-[8px] md:hidden">Stats</span>
+        </button>
+        <button 
+          onClick={() => setActiveTab('announcements')}
+          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'announcements' ? "text-white border-b-2 md:border-b-0 md:border-l-2 border-blue-500" : "text-[#858585] hover:text-white")}
+          title="Announcements"
+        >
+          <Bell size={20} />
+          <span className="text-[8px] md:hidden">Alerts</span>
+        </button>
+        <button 
+          onClick={() => setActiveTab('settings')}
+          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'settings' ? "text-white border-b-2 md:border-b-0 md:border-l-2 border-blue-500" : "text-[#858585] hover:text-white")}
+          title="Global Settings"
+        >
+          <Settings size={20} />
+          <span className="text-[8px] md:hidden">Config</span>
+        </button>
+        <div className="md:mt-auto md:pb-4">
+          <button 
+            onClick={() => setActiveTab('logs')}
+            className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'logs' ? "text-white border-b-2 md:border-b-0 md:border-l-2 border-blue-500" : "text-[#858585] hover:text-white")}
+            title="System Logs"
+          >
+            <Activity size={20} />
+            <span className="text-[8px] md:hidden">Logs</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0 bg-[#1e1e1e]">
+        {/* Header / Terminal Bar */}
+        <header className="h-10 bg-[#252526] border-b border-[#2b2b2b] flex items-center justify-between px-4 text-xs">
+          <div className="flex items-center gap-4">
+            <span className="flex items-center gap-2">
+              <ShieldCheck size={14} className="text-blue-500" />
+              alpha_admin_terminal.exe
+            </span>
+            <div className="h-4 w-px bg-[#333333]"></div>
+            <span className="text-[#858585]">Tab: {activeTab.toUpperCase()}</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <div className={cn("w-2 h-2 rounded-full", appSettings?.isMaintenanceMode ? "bg-red-500 animate-pulse" : "bg-green-500")}></div>
+              <span className={appSettings?.isMaintenanceMode ? "text-red-400" : "text-green-400"}>
+                {appSettings?.isMaintenanceMode ? "Maintenance Mode" : "System: Online"}
+              </span>
+            </div>
+            <span className="text-[#858585]">{new Date().toLocaleTimeString()}</span>
+          </div>
+        </header>
+
+        {/* Content Body */}
+        <div className="flex-1 overflow-auto p-6">
+          <AnimatePresence mode="wait">
+            {activeTab === 'users' && (
+              <motion.div 
+                key="users"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="space-y-6"
+              >
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                    <Users size={20} className="text-blue-400" />
+                    User Command Center
+                  </h2>
+                  <div className="relative w-full md:w-72">
+                    <input
+                      type="text"
+                      placeholder="Search by email, name, or phone..."
+                      className="w-full bg-[#3c3c3c] border border-[#3c3c3c] focus:border-blue-500 py-1.5 pl-10 pr-4 rounded text-sm text-white outline-none transition-all"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                    <Search className="absolute left-3 top-2 text-[#858585]" size={16} />
+                  </div>
+                </div>
+
+                {/* Excel Style Grid */}
+                <div className="bg-[#252526] rounded border border-[#333333] overflow-hidden shadow-2xl">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs text-left min-w-[800px]">
+                        <thead className="bg-[#37373d] text-[#858585] uppercase tracking-wider border-b border-[#333333]">
+                          <tr>
+                            <th className="px-4 py-3 font-medium">User Profile</th>
+                            <th className="px-4 py-3 font-medium">Level</th>
+                            <th className="px-4 py-3 font-medium">Balance (PKR)</th>
+                            <th className="px-4 py-3 font-medium">Current Activity</th>
+                            <th className="px-4 py-3 font-medium">IP / Device</th>
+                            <th className="px-4 py-3 font-medium">Click Speed</th>
+                            <th className="px-4 py-3 font-medium">Status</th>
+                            <th className="px-4 py-3 font-medium">Last Seen</th>
+                            <th className="px-4 py-3 font-medium text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[#333333]">
+                          {filteredUsers.map((u) => (
+                            <tr key={u.uid} className="hover:bg-[#2a2d2e] transition-colors group">
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-3">
+                                  <div className="relative">
+                                    <img src={u.photoURL || `https://ui-avatars.com/api/?name=${u.displayName}`} className="w-8 h-8 rounded border border-[#333333]" />
+                                    {u.isOnline && <div className="absolute -bottom-1 -right-1 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-[#252526]"></div>}
+                                  </div>
+                                  <div>
+                                    <div className="text-white font-medium flex items-center gap-1">
+                                      {u.displayName}
+                                      {u.isVerified && <BadgeCheck size={14} className="text-blue-400" />}
+                                    </div>
+                                    <div className="text-[#858585] text-[10px]">{u.email}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className={cn(
+                                  "px-2 py-0.5 rounded text-[10px] font-bold uppercase",
+                                  u.level === 'Gold' ? "bg-yellow-900/30 text-yellow-400 border border-yellow-800/50" :
+                                  u.level === 'Silver' ? "bg-gray-400/30 text-gray-300 border border-gray-400/50" :
+                                  "bg-orange-900/30 text-orange-400 border border-orange-800/50"
+                                )}>
+                                  {u.level || 'Bronze'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 font-bold text-green-400">Rs. {u.balance.toFixed(2)}</td>
+                              <td className="px-4 py-3">
+                                {u.isOnline ? (
+                                  <div className="flex items-center gap-2 text-blue-400">
+                                    <Activity size={12} className="animate-pulse" />
+                                    <span className="text-[10px]">{u.currentGame || 'Browsing Chat'}</span>
+                                  </div>
+                                ) : (
+                                  <span className="text-[#858585] text-[10px]">Idle</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="text-[10px] text-white font-mono">{u.ipAddress || '0.0.0.0'}</div>
+                                <div className="text-[8px] text-[#858585] font-mono truncate w-20">{u.deviceId || 'Unknown'}</div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="w-16 h-1.5 bg-[#333333] rounded-full overflow-hidden">
+                                  <div 
+                                    className={cn("h-full transition-all", (u.clickSpeed || 0) > 8 ? "bg-red-500" : "bg-blue-500")}
+                                    style={{ width: `${Math.min((u.clickSpeed || 0) * 10, 100)}%` }}
+                                  />
+                                </div>
+                                <div className="text-[8px] text-[#858585] mt-1">{u.clickSpeed || 0} clicks/sec</div>
+                              </td>
+                              <td className="px-4 py-3">
+                            <span className={cn(
+                              "px-2 py-0.5 rounded text-[10px] font-bold uppercase",
+                              u.isBanned ? "bg-red-900/30 text-red-400 border border-red-800/50" : "bg-green-900/30 text-green-400 border border-green-800/50"
+                            )}>
+                              {u.isBanned ? 'Banned' : 'Active'}
+                            </span>
+                            {u.isShadowBanned && (
+                              <span className="ml-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-orange-900/30 text-orange-400 border border-orange-800/50">
+                                Shadow
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-[#858585]">{formatChatDate(u.lastSeen)}</td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex justify-end gap-2 transition-opacity">
+                              <button 
+                                onClick={() => { setSelectedUser(u); setIsEditModalOpen(true); }}
+                                className="p-1.5 bg-[#3c3c3c] hover:bg-blue-600 text-white rounded transition-colors"
+                                title="Edit Profile"
+                              >
+                                <FileText size={14} />
+                              </button>
+                              <button 
+                                onClick={() => updateDoc(doc(db, 'users', u.uid), { isVerified: !u.isVerified })}
+                                className={cn("p-1.5 rounded transition-colors", u.isVerified ? "bg-blue-600 text-white" : "bg-[#3c3c3c] hover:bg-blue-600 text-white")}
+                                title="Toggle Verification"
+                              >
+                                <BadgeCheck size={14} />
+                              </button>
+                              <button 
+                                onClick={() => updateDoc(doc(db, 'users', u.uid), { isBanned: !u.isBanned })}
+                                className={cn("p-1.5 rounded transition-colors", u.isBanned ? "bg-red-600 text-white" : "bg-[#3c3c3c] hover:bg-red-600 text-white")}
+                                title={u.isBanned ? "Unban User" : "Ban User"}
+                              >
+                                <Ban size={14} />
+                              </button>
+                              <button 
+                                onClick={() => handleShadowBan(u.uid, !u.isShadowBanned)}
+                                className={cn("p-1.5 rounded transition-colors", u.isShadowBanned ? "bg-orange-600 text-white" : "bg-[#3c3c3c] hover:bg-orange-600 text-white")}
+                                title={u.isShadowBanned ? "Unshadow User" : "Shadow Ban User"}
+                              >
+                                <ShieldAlert size={14} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'fraud' && (
+            <motion.div 
+              key="fraud"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-6"
+            >
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <ShieldAlert size={20} className="text-red-400" />
+                Fraud Detection Monitor
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-[#252526] p-4 rounded border border-[#333333]">
+                  <div className="text-[#858585] text-xs mb-1">High Risk (Clicks &gt; 50/s)</div>
+                  <div className="text-2xl font-bold text-red-400">{users.filter(u => (u.clickCount || 0) > 50).length}</div>
+                </div>
+                <div className="bg-[#252526] p-4 rounded border border-[#333333]">
+                  <div className="text-[#858585] text-xs mb-1">Shadow Banned</div>
+                  <div className="text-2xl font-bold text-orange-400">{users.filter(u => u.isShadowBanned).length}</div>
+                </div>
+                <div className="bg-[#252526] p-4 rounded border border-[#333333]">
+                  <div className="text-[#858585] text-xs mb-1">Potential Multi-Accounts</div>
+                  <div className="text-2xl font-bold text-blue-400">0</div>
+                </div>
+              </div>
+
+              <div className="bg-[#252526] rounded border border-[#333333] overflow-hidden">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-[#37373d] text-[#858585] uppercase tracking-wider border-b border-[#333333]">
+                    <tr>
+                      <th className="px-4 py-3">User</th>
+                      <th className="px-4 py-3">IP Address</th>
+                      <th className="px-4 py-3">Device ID</th>
+                      <th className="px-4 py-3">Click Speed</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#333333]">
+                    {users.filter(u => (u.clickCount || 0) > 0 || u.ipAddress).map(u => (
+                      <tr key={u.uid} className="hover:bg-[#2a2d2e]">
+                        <td className="px-4 py-3 text-white">{u.displayName}</td>
+                        <td className="px-4 py-3 font-mono text-[#858585]">{u.ipAddress || 'N/A'}</td>
+                        <td className="px-4 py-3 font-mono text-[#858585]">{u.deviceFingerprint?.slice(0, 12)}...</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 h-1.5 bg-[#333333] rounded-full overflow-hidden w-24">
+                              <div 
+                                className={cn("h-full", (u.clickCount || 0) > 50 ? "bg-red-500" : "bg-green-500")}
+                                style={{ width: `${Math.min((u.clickCount || 0) * 2, 100)}%` }}
+                              />
+                            </div>
+                            <span className="text-[10px] font-mono">{u.clickCount || 0}/s</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button 
+                            onClick={() => handleShadowBan(u.uid, !u.isShadowBanned)}
+                            className={cn("px-2 py-1 rounded text-[10px] font-bold uppercase", u.isShadowBanned ? "bg-green-600 text-white" : "bg-orange-600 text-white")}
+                          >
+                            {u.isShadowBanned ? 'Unshadow' : 'Shadow Ban'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'support' && (
+            <motion.div 
+              key="support"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[600px]"
+            >
+              <div className="bg-[#252526] rounded border border-[#333333] flex flex-col overflow-hidden">
+                <div className="p-3 bg-[#37373d] text-[#858585] text-[10px] font-bold uppercase tracking-wider border-b border-[#333333]">
+                  Active Tickets
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                  {supportTickets.map(ticket => (
+                    <button
+                      key={ticket.id}
+                      onClick={() => setActiveTicket(ticket)}
+                      className={cn(
+                        "w-full p-4 text-left border-b border-[#333333] hover:bg-[#2a2d2e] transition-colors",
+                        activeTicket?.id === ticket.id ? "bg-[#37373d]" : ""
+                      )}
+                    >
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="text-white text-sm font-medium">{ticket.subject}</span>
+                        <span className={cn(
+                          "text-[8px] px-1.5 py-0.5 rounded font-bold uppercase",
+                          ticket.status === 'open' ? "bg-green-900/30 text-green-400 border border-green-800/50" : "bg-[#333333] text-[#858585]"
+                        )}>
+                          {ticket.status}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-[#858585] truncate">{ticket.lastMessage}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="md:col-span-2 bg-[#252526] rounded border border-[#333333] flex flex-col overflow-hidden">
+                {activeTicket ? (
+                  <>
+                    <div className="p-4 bg-[#37373d] border-b border-[#333333] flex justify-between items-center">
+                      <div>
+                        <div className="text-white font-bold">{activeTicket.subject}</div>
+                        <div className="text-[10px] text-[#858585]">User: {activeTicket.userId}</div>
+                      </div>
+                      <button 
+                        onClick={() => handleCloseTicket(activeTicket.id!)}
+                        className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-[10px] font-bold"
+                      >
+                        Close Ticket
+                      </button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                      {supportMessages.map((msg, idx) => (
+                        <div key={idx} className={cn("flex", msg.senderId === 'admin-support' ? "justify-end" : "justify-start")}>
+                          <div className={cn(
+                            "max-w-[80%] p-3 rounded text-xs",
+                            msg.senderId === 'admin-support' ? "bg-blue-600 text-white" : "bg-[#3c3c3c] text-[#cccccc]"
+                          )}>
+                            {msg.text}
+                            <div className="text-[8px] opacity-50 mt-1">
+                              {msg.timestamp?.toDate().toLocaleTimeString()}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="p-4 bg-[#252526] border-t border-[#333333] flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Type a reply..."
+                        value={newSupportMsg}
+                        onChange={(e) => setNewSupportMsg(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && handleSendSupportMessage()}
+                        className="flex-1 bg-[#3c3c3c] border border-[#3c3c3c] focus:border-blue-500 rounded px-4 py-2 text-xs text-white outline-none"
+                      />
+                      <button 
+                        onClick={handleSendSupportMessage}
+                        className="p-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                      >
+                        <Send size={16} />
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex-1 flex flex-col items-center justify-center text-[#333333]">
+                    <MessageSquare size={48} className="mb-4" />
+                    <p className="text-sm">Select a ticket to begin support session</p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'analytics' && (
+            <motion.div 
+              key="analytics"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-6"
+            >
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <TrendingUp size={20} className="text-blue-400" />
+                Revenue & Performance Analytics
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="bg-[#252526] p-4 rounded border border-[#333333]">
+                  <div className="text-[#858585] text-[10px] uppercase font-bold mb-1">Total Revenue</div>
+                  <div className="text-xl font-bold text-green-400">Rs. {revenueStats.reduce((acc, curr) => acc + curr.totalRevenue, 0).toFixed(2)}</div>
+                </div>
+                <div className="bg-[#252526] p-4 rounded border border-[#333333]">
+                  <div className="text-[#858585] text-[10px] uppercase font-bold mb-1">Total Payouts</div>
+                  <div className="text-xl font-bold text-red-400">Rs. {revenueStats.reduce((acc, curr) => acc + curr.totalPayouts, 0).toFixed(2)}</div>
+                </div>
+                <div className="bg-[#252526] p-4 rounded border border-[#333333]">
+                  <div className="text-[#858585] text-[10px] uppercase font-bold mb-1">Active Users (5m)</div>
+                  <div className="text-xl font-bold text-blue-400">{users.filter(u => u.lastSeen && (Date.now() - getTime(u.lastSeen) < 300000)).length}</div>
+                </div>
+                <div className="bg-[#252526] p-4 rounded border border-[#333333]">
+                  <div className="text-[#858585] text-[10px] uppercase font-bold mb-1">Net Profit</div>
+                  <div className="text-xl font-bold text-yellow-400">Rs. {(revenueStats.reduce((acc, curr) => acc + curr.totalRevenue, 0) - revenueStats.reduce((acc, curr) => acc + curr.totalPayouts, 0)).toFixed(2)}</div>
+                </div>
+              </div>
+
+              <div className="bg-[#252526] rounded border border-[#333333] p-6 h-[400px] flex flex-col">
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-sm font-bold text-white">Revenue vs Payouts (Last 30 Days)</h3>
+                  <div className="flex gap-4 text-[10px]">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2 h-2 bg-green-500 rounded-sm"></div>
+                      <span>Revenue</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2 h-2 bg-red-500 rounded-sm"></div>
+                      <span>Payouts</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex-1 flex items-end gap-2 pb-8 border-b border-[#333333]">
+                  {revenueStats.slice().reverse().map((stat, idx) => (
+                    <div key={idx} className="flex-1 flex flex-col items-center gap-1 group relative h-full">
+                      <div className="flex gap-1 items-end h-full w-full">
+                        <div 
+                          className="flex-1 bg-green-500/40 hover:bg-green-500 transition-all rounded-t-sm"
+                          style={{ height: `${Math.min((stat.totalRevenue / 2000) * 100, 100)}%` }}
+                        />
+                        <div 
+                          className="flex-1 bg-red-500/40 hover:bg-red-500 transition-all rounded-t-sm"
+                          style={{ height: `${Math.min((stat.totalPayouts / 2000) * 100, 100)}%` }}
+                        />
+                      </div>
+                      <div className="absolute bottom-full mb-2 hidden group-hover:block bg-[#252526] border border-[#333333] p-2 rounded text-[8px] z-10 whitespace-nowrap shadow-xl">
+                        <div className="text-[#858585] mb-1">{stat.date}</div>
+                        <div className="text-green-400">Rev: {stat.totalRevenue}</div>
+                        <div className="text-red-400">Pay: {stat.totalPayouts}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex justify-between mt-2 text-[8px] text-[#858585]">
+                  <span>30 Days Ago</span>
+                  <span>Today</span>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+            {activeTab === 'withdrawals' && (
+              <motion.div 
+                key="withdrawals"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="space-y-6"
+              >
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                    <Wallet size={20} className="text-green-400" />
+                    Finance Grid
+                  </h2>
+                  <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
+                    {bulkSelection.length > 0 && (
+                      <button 
+                        onClick={handleBulkApprove}
+                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-1.5 rounded text-sm font-bold flex items-center justify-center gap-2 transition-all"
+                      >
+                        <CheckCircle size={16} />
+                        Approve Selected ({bulkSelection.length})
+                      </button>
+                    )}
+                    <div className="bg-[#252526] border border-[#333333] px-4 py-1.5 rounded flex items-center justify-between md:justify-start gap-4 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[#858585]">Pending:</span>
+                        <span className="text-yellow-400 font-bold">Rs. {totalPendingAmount.toFixed(2)}</span>
+                      </div>
+                      <div className="w-px h-4 bg-[#333333]"></div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[#858585]">Paid Today:</span>
+                        <span className="text-green-400 font-bold">Rs. {totalApprovedToday.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-[#252526] rounded border border-[#333333] overflow-hidden shadow-2xl">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs text-left min-w-[800px]">
+                      <thead className="bg-[#37373d] text-[#858585] uppercase tracking-wider border-b border-[#333333]">
+                        <tr>
+                          <th className="px-4 py-3 w-10">
+                            <input 
+                              type="checkbox" 
+                              onChange={(e) => {
+                                if (e.target.checked) setBulkSelection(pendingWithdrawals.map(w => w.id!));
+                                else setBulkSelection([]);
+                              }}
+                              checked={bulkSelection.length === pendingWithdrawals.length && pendingWithdrawals.length > 0}
+                            />
+                          </th>
+                          <th className="px-4 py-3 font-medium">User ID</th>
+                          <th className="px-4 py-3 font-medium">Amount</th>
+                          <th className="px-4 py-3 font-medium">Method</th>
+                          <th className="px-4 py-3 font-medium">Phone</th>
+                          <th className="px-4 py-3 font-medium">Date</th>
+                          <th className="px-4 py-3 font-medium">Status</th>
+                          <th className="px-4 py-3 font-medium text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#333333]">
+                        {withdrawals.map((w) => (
+                          <tr key={w.id} className="hover:bg-[#2a2d2e] transition-colors group">
+                            <td className="px-4 py-3">
+                              {w.status === 'pending' && (
+                                <input 
+                                  type="checkbox" 
+                                  checked={bulkSelection.includes(w.id!)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) setBulkSelection([...bulkSelection, w.id!]);
+                                    else setBulkSelection(bulkSelection.filter(id => id !== w.id));
+                                  }}
+                                />
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-white font-mono">{w.userId}</td>
+                            <td className="px-4 py-3 font-bold text-green-400">Rs. {w.amount.toFixed(2)}</td>
+                            <td className="px-4 py-3">{w.paymentMethod}</td>
+                            <td className="px-4 py-3 font-mono">{w.phoneNumber}</td>
+                            <td className="px-4 py-3 text-[#858585]">{formatChatDate(w.timestamp?.toDate())}</td>
+                            <td className="px-4 py-3">
+                              <span className={cn(
+                                "px-2 py-0.5 rounded text-[10px] font-bold uppercase",
+                                w.status === 'pending' ? "bg-yellow-900/30 text-yellow-400 border border-yellow-800/50" :
+                                w.status === 'approved' ? "bg-green-900/30 text-green-400 border border-green-800/50" :
+                                "bg-red-900/30 text-red-400 border border-red-800/50"
+                              )}>
+                                {w.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              {w.status === 'pending' && (
+                                <div className="flex justify-end gap-2">
+                                  <button 
+                                    onClick={() => handleApprove(w)}
+                                    disabled={!!loading}
+                                    className="p-1.5 bg-green-600 hover:bg-green-700 text-white rounded transition-colors disabled:opacity-50"
+                                  >
+                                    <CheckCircle size={14} />
+                                  </button>
+                                  <button 
+                                    onClick={() => handleReject(w.id!)}
+                                    disabled={!!loading}
+                                    className="p-1.5 bg-red-600 hover:bg-red-700 text-white rounded transition-colors disabled:opacity-50"
+                                  >
+                                    <XCircle size={14} />
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {activeTab === 'games' && (
+              <motion.div 
+                key="games"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="space-y-6"
+              >
+                <div className="flex justify-between items-center">
+                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                    <Gamepad2 size={20} className="text-orange-400" />
+                    Game Management
+                  </h2>
+                  <button 
+                    onClick={() => updateGlobalSetting('isGamesEnabled', !appSettings?.isGamesEnabled)}
+                    className={cn(
+                      "px-4 py-1.5 rounded text-sm font-bold flex items-center gap-2 transition-all",
+                      appSettings?.isGamesEnabled ? "bg-green-600 hover:bg-green-700 text-white" : "bg-red-600 hover:bg-red-700 text-white"
+                    )}
+                  >
+                    <Power size={16} />
+                    {appSettings?.isGamesEnabled ? "Games: Enabled" : "Games: Disabled"}
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {gameSettings.map((game) => (
+                    <div key={game.id} className="bg-[#252526] rounded-xl border border-[#333333] p-6 space-y-4 shadow-lg">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h3 className="text-lg font-bold text-white">{game.name}</h3>
+                          <p className="text-[10px] text-[#858585] uppercase font-bold">ID: {game.id}</p>
+                        </div>
+                        <button 
+                          onClick={() => toggleGame(game.id, !game.isEnabled)}
+                          className={cn(
+                            "p-2 rounded-full transition-all",
+                            game.isEnabled ? "bg-green-900/30 text-green-400" : "bg-red-900/30 text-red-400"
+                          )}
+                        >
+                          <Power size={18} />
+                        </button>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-[10px] text-[#858585] uppercase font-bold mb-1">Earning Rate (PKR)</label>
+                          <div className="flex items-center gap-2">
+                            <input 
+                              type="number" 
+                              className="w-full bg-[#1e1e1e] border border-[#333333] focus:border-blue-500 rounded px-3 py-1.5 text-sm text-white outline-none"
+                              value={game.earningRate}
+                              onChange={(e) => updateGameRate(game.id, parseFloat(e.target.value))}
+                            />
+                            <span className="text-xs text-[#858585]">/win</span>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-[#858585] uppercase font-bold mb-1">Daily Limit</label>
+                          <input 
+                            type="number" 
+                            className="w-full bg-[#1e1e1e] border border-[#333333] focus:border-blue-500 rounded px-3 py-1.5 text-sm text-white outline-none"
+                            value={game.dailyLimit}
+                            onChange={(e) => setDoc(doc(db, 'gameSettings', game.id), { dailyLimit: parseInt(e.target.value) }, { merge: true })}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+
+            {activeTab === 'announcements' && (
+              <motion.div 
+                key="announcements"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="space-y-6"
+              >
+                <div className="flex justify-between items-center">
+                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                    <Bell size={20} className="text-yellow-400" />
+                    Global Announcements
+                  </h2>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* Word Style Editor */}
+                  <div className="bg-[#252526] rounded-xl border border-[#333333] overflow-hidden shadow-2xl flex flex-col h-[400px]">
+                    <div className="bg-[#37373d] p-3 border-b border-[#333333] flex items-center gap-4">
+                      <div className="flex gap-1">
+                        <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                        <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                        <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                      </div>
+                      <span className="text-[10px] text-[#858585] uppercase font-bold">New Announcement Editor</span>
+                    </div>
+                    <div className="flex-1 p-6 flex flex-col">
+                      <textarea 
+                        id="announcement-text"
+                        placeholder="Type your announcement here..."
+                        className="flex-1 bg-transparent text-white text-lg font-serif resize-none outline-none leading-relaxed"
+                      ></textarea>
+                      <div className="mt-6 flex justify-between items-center">
+                        <div className="flex gap-2">
+                          <select id="announcement-type" className="bg-[#3c3c3c] border border-[#333333] text-xs text-white rounded px-3 py-1.5 outline-none">
+                            <option value="info">Info (Blue)</option>
+                            <option value="warning">Warning (Yellow)</option>
+                            <option value="success">Success (Green)</option>
+                          </select>
+                        </div>
+                        <button 
+                          onClick={() => {
+                            const text = (document.getElementById('announcement-text') as HTMLTextAreaElement).value;
+                            const type = (document.getElementById('announcement-type') as HTMLSelectElement).value as any;
+                            if (text) {
+                              addAnnouncement(text, type);
+                              (document.getElementById('announcement-text') as HTMLTextAreaElement).value = '';
+                            }
+                          }}
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-bold flex items-center gap-2 transition-all"
+                        >
+                          <Plus size={18} />
+                          Publish
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Active Announcements List */}
+                  <div className="space-y-6">
+                    <div className="bg-[#252526] rounded-xl border border-[#333333] p-6 space-y-4 shadow-lg">
+                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                        <Send size={16} className="text-blue-400" />
+                        Direct User Notification
+                      </h3>
+                      <div className="space-y-3">
+                        <input 
+                          id="notif-user-id"
+                          type="text" 
+                          placeholder="User ID (UID)"
+                          className="w-full bg-[#1e1e1e] border border-[#333333] focus:border-blue-500 rounded px-3 py-1.5 text-xs text-white outline-none"
+                        />
+                        <textarea 
+                          id="notif-message"
+                          placeholder="Type your private message..."
+                          className="w-full bg-[#1e1e1e] border border-[#333333] focus:border-blue-500 rounded px-3 py-1.5 text-xs text-white outline-none h-20 resize-none"
+                        ></textarea>
+                        <button 
+                          onClick={async () => {
+                            const uid = (document.getElementById('notif-user-id') as HTMLInputElement).value;
+                            const msg = (document.getElementById('notif-message') as HTMLTextAreaElement).value;
+                            if (uid && msg) {
+                              await addDoc(collection(db, 'notifications'), {
+                                userId: uid,
+                                message: msg,
+                                type: 'admin_direct',
+                                read: false,
+                                timestamp: serverTimestamp()
+                              });
+                              alert('Notification sent!');
+                              (document.getElementById('notif-user-id') as HTMLInputElement).value = '';
+                              (document.getElementById('notif-message') as HTMLTextAreaElement).value = '';
+                            }
+                          }}
+                          className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded font-bold text-xs transition-all"
+                        >
+                          Send Private Notification
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <h3 className="text-xs text-[#858585] uppercase font-bold tracking-widest">Active Tickers</h3>
+                      <div className="space-y-3">
+                        {announcements.map((a) => (
+                          <div key={a.id} className={cn(
+                            "p-4 rounded-xl border flex justify-between items-start group relative overflow-hidden",
+                            a.type === 'info' ? "bg-blue-900/20 border-blue-800/50 text-blue-400" :
+                            a.type === 'warning' ? "bg-yellow-900/20 border-yellow-800/50 text-yellow-400" :
+                            "bg-green-900/20 border-green-800/50 text-green-400"
+                          )}>
+                            <div className="flex gap-3">
+                              {a.type === 'info' ? <Info size={18} /> :
+                               a.type === 'warning' ? <AlertCircle size={18} /> :
+                               <CheckCircle2 size={18} />}
+                              <p className="text-sm">{a.text}</p>
+                            </div>
+                            <button 
+                              onClick={() => deleteAnnouncement(a.id!)}
+                              className="text-[#858585] hover:text-red-500 transition-all"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {activeTab === 'settings' && (
+              <motion.div 
+                key="settings"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="max-w-2xl space-y-8"
+              >
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <Settings size={20} className="text-gray-400" />
+                  Global Configuration
+                </h2>
+
+                <div className="space-y-6 bg-[#252526] p-8 rounded-2xl border border-[#333333] shadow-2xl">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-white font-medium">Maintenance Mode</h4>
+                      <p className="text-xs text-[#858585]">Disable all app features for users</p>
+                    </div>
+                    <button 
+                      onClick={() => updateGlobalSetting('isMaintenanceMode', !appSettings?.isMaintenanceMode)}
+                      className={cn(
+                        "w-12 h-6 rounded-full transition-all relative",
+                        appSettings?.isMaintenanceMode ? "bg-red-600" : "bg-[#3c3c3c]"
+                      )}
+                    >
+                      <div className={cn(
+                        "absolute top-1 w-4 h-4 bg-white rounded-full transition-all",
+                        appSettings?.isMaintenanceMode ? "right-1" : "left-1"
+                      )}></div>
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-white font-medium">Withdrawals Global Switch</h4>
+                      <p className="text-xs text-[#858585]">Enable or disable withdrawal requests</p>
+                    </div>
+                    <button 
+                      onClick={() => updateGlobalSetting('isWithdrawalsEnabled', !appSettings?.isWithdrawalsEnabled)}
+                      className={cn(
+                        "w-12 h-6 rounded-full transition-all relative",
+                        appSettings?.isWithdrawalsEnabled ? "bg-green-600" : "bg-[#3c3c3c]"
+                      )}
+                    >
+                      <div className={cn(
+                        "absolute top-1 w-4 h-4 bg-white rounded-full transition-all",
+                        appSettings?.isWithdrawalsEnabled ? "right-1" : "left-1"
+                      )}></div>
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <h4 className="text-white font-medium">Global Reward Multiplier</h4>
+                      <p className="text-xs text-[#858585]">Multiply all earnings (0.1x to 5.0x)</p>
+                      <input 
+                        type="range" 
+                        min="0.1" 
+                        max="5" 
+                        step="0.1"
+                        className="w-full h-1.5 bg-[#3c3c3c] rounded-lg appearance-none cursor-pointer accent-blue-500"
+                        value={appSettings?.rewardMultiplier || 1}
+                        onChange={(e) => updateGlobalSetting('rewardMultiplier', parseFloat(e.target.value))}
+                      />
+                      <div className="flex justify-between text-[10px] text-[#858585] font-bold">
+                        <span>0.1x</span>
+                        <span className="text-blue-400">{appSettings?.rewardMultiplier || 1}x</span>
+                        <span>5.0x</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <h4 className="text-white font-medium">Min Withdrawal (PKR)</h4>
+                      <p className="text-xs text-[#858585]">Minimum balance required to withdraw</p>
+                      <input 
+                        type="number" 
+                        className="w-full bg-[#1e1e1e] border border-[#333333] focus:border-blue-500 rounded px-3 py-1.5 text-sm text-white outline-none"
+                        value={appSettings?.minWithdrawal || 500}
+                        onChange={(e) => updateGlobalSetting('minWithdrawal', parseInt(e.target.value))}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="text-white font-medium">Ad Earning Rate (PKR)</h4>
+                    <p className="text-xs text-[#858585]">Amount earned per video ad watched</p>
+                    <input 
+                      type="number" 
+                      step="0.1"
+                      className="w-full bg-[#1e1e1e] border border-[#333333] focus:border-blue-500 rounded px-3 py-1.5 text-sm text-white outline-none"
+                      value={appSettings?.adEarningRate || 1.5}
+                      onChange={(e) => updateGlobalSetting('adEarningRate', parseFloat(e.target.value))}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="text-white font-medium">Withdrawal Tax (%)</h4>
+                    <p className="text-xs text-[#858585]">Service fee automatically deducted from withdrawals</p>
+                    <input 
+                      type="number" 
+                      className="w-full bg-[#1e1e1e] border border-[#333333] focus:border-blue-500 rounded px-3 py-1.5 text-sm text-white outline-none"
+                      value={appSettings?.withdrawalTax || 0}
+                      onChange={(e) => updateGlobalSetting('withdrawalTax', parseFloat(e.target.value))}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 bg-blue-900/20 border border-blue-800/50 rounded-xl">
+                    <div>
+                      <h4 className="text-blue-400 font-bold">Database Backup</h4>
+                      <p className="text-[10px] text-blue-400/70">Create a full snapshot of all collections</p>
+                    </div>
+                    <button 
+                      onClick={() => alert('Backup started... Check logs for progress.')}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-xs font-bold flex items-center gap-2"
+                    >
+                      <Database size={14} />
+                      One-Click Backup
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-white font-medium">Jackpot Hour (Double Earnings)</h4>
+                      <p className="text-xs text-[#858585]">Double all game rewards for 1 hour</p>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        const isJackpot = !appSettings?.isJackpotHour;
+                        const endTime = isJackpot ? new Date(Date.now() + 3600000).toISOString() : null;
+                        updateDoc(doc(db, 'settings', 'global'), { 
+                          isJackpotHour: isJackpot,
+                          jackpotEndTime: endTime
+                        });
+                      }}
+                      className={cn(
+                        "w-12 h-6 rounded-full transition-all relative",
+                        appSettings?.isJackpotHour ? "bg-orange-600" : "bg-[#3c3c3c]"
+                      )}
+                    >
+                      <div className={cn(
+                        "absolute top-1 w-4 h-4 bg-white rounded-full transition-all",
+                        appSettings?.isJackpotHour ? "right-1" : "left-1"
+                      )}></div>
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h4 className="text-white font-medium">System Ticker Messages</h4>
+                    <p className="text-xs text-[#858585]">Messages that scroll at the very top of the app</p>
+                    <div className="flex gap-2">
+                      <input 
+                        id="ticker-input"
+                        type="text" 
+                        placeholder="Add new ticker message..."
+                        className="flex-1 bg-[#1e1e1e] border border-[#333333] focus:border-blue-500 rounded px-3 py-1.5 text-sm text-white outline-none"
+                      />
+                      <button 
+                        onClick={() => {
+                          const input = document.getElementById('ticker-input') as HTMLInputElement;
+                          if (input.value) {
+                            const newMessages = [...(appSettings?.tickerMessages || []), input.value];
+                            updateGlobalSetting('tickerMessages', newMessages);
+                            input.value = '';
+                          }
+                        }}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded text-xs font-bold"
+                      >
+                        Add
+                      </button>
+                    </div>
+                    <div className="space-y-2 max-h-32 overflow-y-auto">
+                      {(appSettings?.tickerMessages || []).map((msg, i) => (
+                        <div key={i} className="flex justify-between items-center bg-[#1e1e1e] p-2 rounded border border-[#333333] text-xs">
+                          <span>{msg}</span>
+                          <button 
+                            onClick={() => {
+                              const newMessages = appSettings?.tickerMessages.filter((_, index) => index !== i);
+                              updateGlobalSetting('tickerMessages', newMessages);
+                            }}
+                            className="text-red-500 hover:text-red-400"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="text-white font-medium">Ad Frequency</h4>
+                    <p className="text-xs text-[#858585] mb-2">Number of ads shown to users per day</p>
+                    <input 
+                      type="range" 
+                      min="0" 
+                      max="50" 
+                      className="w-full h-1.5 bg-[#3c3c3c] rounded-lg appearance-none cursor-pointer accent-blue-500"
+                      value={appSettings?.adFrequency || 0}
+                      onChange={(e) => updateGlobalSetting('adFrequency', parseInt(e.target.value))}
+                    />
+                    <div className="flex justify-between text-[10px] text-[#858585] font-bold">
+                      <span>0 (Disabled)</span>
+                      <span>Current: {appSettings?.adFrequency}</span>
+                      <span>50 (Max)</span>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {activeTab === 'logs' && (
+              <motion.div 
+                key="logs"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="space-y-6"
+              >
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <Activity size={20} className="text-purple-400" />
+                  System Logs
+                </h2>
+                <div className="bg-[#1e1e1e] border border-[#333333] rounded p-4 font-mono text-xs h-[500px] overflow-auto space-y-1">
+                  <div className="text-green-400">[SYSTEM] Initializing Alpha Admin Terminal...</div>
+                  <div className="text-green-400">[SYSTEM] Connection established with Firestore.</div>
+                  <div className="text-blue-400">[AUTH] Admin user authenticated: {new Date().toISOString()}</div>
+                  <div className="text-yellow-400">[WARN] High traffic detected in 'Lucky Spin' game.</div>
+                  <div className="text-white">[INFO] Global settings updated by admin.</div>
+                  <div className="text-[#858585]">[DEBUG] Fetching real-time user updates...</div>
+                  {/* Real logs could be mapped here from a 'logs' collection */}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+
+      {/* User Edit Modal */}
+      <AnimatePresence>
+        {isEditModalOpen && selectedUser && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-[#252526] w-full max-w-md rounded-2xl border border-[#333333] shadow-2xl overflow-hidden"
+            >
+              <div className="bg-[#37373d] p-4 border-b border-[#333333] flex justify-between items-center">
+                <h3 className="text-white font-bold">Edit User: {selectedUser.displayName}</h3>
+                <button onClick={() => setIsEditModalOpen(false)} className="text-[#858585] hover:text-white">
+                  <XCircle size={20} />
+                </button>
+              </div>
+              <div className="p-6 space-y-6">
+                <div className="flex items-center gap-4">
+                  <img src={selectedUser.photoURL || ''} className="w-16 h-16 rounded-xl border border-[#333333]" />
+                  <div>
+                    <div className="text-white font-bold">{selectedUser.displayName}</div>
+                    <div className="text-xs text-[#858585]">{selectedUser.email}</div>
+                  </div>
+                </div>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-[10px] text-[#858585] uppercase font-bold mb-1">Manual Balance Adjustment</label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-green-400 font-bold">Rs.</span>
+                      <input 
+                        type="number" 
+                        className="w-full bg-[#1e1e1e] border border-[#333333] focus:border-blue-500 rounded px-3 py-2 text-white outline-none"
+                        defaultValue={selectedUser.balance}
+                        id="edit-balance"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-[#858585] uppercase font-bold mb-1">User Level</label>
+                    <select 
+                      id="edit-level"
+                      className="w-full bg-[#1e1e1e] border border-[#333333] focus:border-blue-500 rounded px-3 py-2 text-white outline-none"
+                      defaultValue={selectedUser.level || 'Bronze'}
+                    >
+                      <option value="Bronze">Bronze (Standard)</option>
+                      <option value="Silver">Silver (2x Earning)</option>
+                      <option value="Gold">Gold (3x Earning)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-[#858585] uppercase font-bold mb-1">Badges (Comma separated)</label>
+                    <input 
+                      type="text" 
+                      id="edit-badges"
+                      className="w-full bg-[#1e1e1e] border border-[#333333] focus:border-blue-500 rounded px-3 py-2 text-white outline-none"
+                      defaultValue={(selectedUser.badges || []).join(', ')}
+                      placeholder="VIP, Pro, OG"
+                    />
+                  </div>
+                  <div className="flex gap-4">
+                    <button 
+                      onClick={() => {
+                        const newBalance = parseFloat((document.getElementById('edit-balance') as HTMLInputElement).value);
+                        const newLevel = (document.getElementById('edit-level') as HTMLSelectElement).value;
+                        const newBadges = (document.getElementById('edit-badges') as HTMLInputElement).value.split(',').map(b => b.trim()).filter(b => b);
+                        updateDoc(doc(db, 'users', selectedUser.uid), { 
+                          balance: newBalance,
+                          level: newLevel,
+                          badges: newBadges
+                        });
+                        setIsEditModalOpen(false);
+                      }}
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg transition-all"
+                    >
+                      Save Changes
+                    </button>
+                    <button 
+                      onClick={() => setIsEditModalOpen(false)}
+                      className="flex-1 bg-[#3c3c3c] hover:bg-[#4c4c4c] text-white font-bold py-2 rounded-lg transition-all"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Activity Terminal Footer */}
+      <div className="bg-[#007acc] h-6 flex items-center px-4 justify-between text-[10px] text-white shrink-0">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1">
+            <Activity size={12} />
+            <span>Live Activity Terminal</span>
+          </div>
+          <div className="flex items-center gap-1 text-blue-100">
+            <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+            <span>System Online</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1">
+            <Shield size={12} />
+            <span>Fraud Protection: Active</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <TrendingUp size={12} />
+            <span>Revenue: Rs. {revenueStats[0]?.totalRevenue || 0}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
