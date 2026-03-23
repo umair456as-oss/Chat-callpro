@@ -53,6 +53,9 @@ export default function AdminPanel() {
   const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [revenueStats, setRevenueStats] = useState<RevenueStats[]>([]);
+  const [showGameAds, setShowGameAds] = useState(false);
+  const [showSocialAds, setShowSocialAds] = useState(false);
+  const [adTimer, setAdTimer] = useState(1.3);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
@@ -61,6 +64,40 @@ export default function AdminPanel() {
   const [activeTicket, setActiveTicket] = useState<SupportTicket | null>(null);
   const [supportMessages, setSupportMessages] = useState<any[]>([]);
   const [newSupportMsg, setNewSupportMsg] = useState('');
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+
+  const tabs: AdminTab[] = ['users', 'analytics', 'withdrawals', 'games', 'announcements', 'support', 'fraud', 'settings', 'logs'];
+
+  const cycleTab = (direction: 'up' | 'down') => {
+    const currentIndex = tabs.indexOf(activeTab);
+    if (direction === 'down') {
+      const nextIndex = (currentIndex + 1) % tabs.length;
+      setActiveTab(tabs[nextIndex]);
+    } else {
+      const prevIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+      setActiveTab(tabs[prevIndex]);
+    }
+  };
+
+  const handleSidebarWheel = (e: React.WheelEvent) => {
+    if (Math.abs(e.deltaY) > 50) {
+      cycleTab(e.deltaY > 0 ? 'down' : 'up');
+    }
+  };
+
+  const handleSidebarTouchStart = (e: React.TouchEvent) => {
+    setTouchStart(e.touches[0].clientY);
+  };
+
+  const handleSidebarTouchEnd = (e: React.TouchEvent) => {
+    if (touchStart === null) return;
+    const touchEnd = e.changedTouches[0].clientY;
+    const diff = touchStart - touchEnd;
+    if (Math.abs(diff) > 50) {
+      cycleTab(diff > 0 ? 'down' : 'up');
+    }
+    setTouchStart(null);
+  };
 
   useEffect(() => {
     // Initialize Settings if not exists
@@ -121,6 +158,15 @@ export default function AdminPanel() {
       setRevenueStats(snapshot.docs.map(doc => ({ ...doc.data() } as RevenueStats)));
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'revenueStats'));
 
+    const unsubAds = onSnapshot(doc(db, 'admin_settings', 'show_game_ads'), (doc) => {
+      if (doc.exists()) {
+        const data = doc.data();
+        setShowGameAds(data.isAdsEnabled === true);
+        setShowSocialAds(data.isSocialAdsEnabled === true);
+        if (data.adTimer !== undefined) setAdTimer(data.adTimer);
+      }
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'admin_settings/show_game_ads'));
+
     return () => {
       unsubW();
       unsubU();
@@ -130,6 +176,7 @@ export default function AdminPanel() {
       unsubT();
       unsubL();
       unsubStats();
+      unsubAds();
     };
   }, []);
 
@@ -155,7 +202,8 @@ export default function AdminPanel() {
         receiverId: activeTicket.userId,
         text: newSupportMsg,
         timestamp: serverTimestamp(),
-        type: 'support'
+        type: 'support',
+        replyTo: null
       });
       await updateDoc(doc(db, 'supportTickets', activeTicket.id!), {
         updatedAt: serverTimestamp(),
@@ -278,6 +326,30 @@ export default function AdminPanel() {
     }
   };
 
+  const toggleGameAds = async () => {
+    try {
+      await setDoc(doc(db, 'admin_settings', 'show_game_ads'), { isAdsEnabled: !showGameAds }, { merge: true });
+    } catch (error) {
+      console.error('Error toggling game ads:', error);
+    }
+  };
+
+  const toggleSocialAds = async () => {
+    try {
+      await setDoc(doc(db, 'admin_settings', 'show_game_ads'), { isSocialAdsEnabled: !showSocialAds }, { merge: true });
+    } catch (error) {
+      console.error('Error toggling social ads:', error);
+    }
+  };
+
+  const updateAdTimer = async (val: number) => {
+    try {
+      await setDoc(doc(db, 'admin_settings', 'show_game_ads'), { adTimer: val }, { merge: true });
+    } catch (error) {
+      console.error('Error updating ad timer:', error);
+    }
+  };
+
   const addAnnouncement = async (text: string, type: 'info' | 'warning' | 'success') => {
     try {
       await addDoc(collection(db, 'announcements'), {
@@ -330,7 +402,12 @@ export default function AdminPanel() {
   return (
     <div className="flex flex-col md:flex-row h-full bg-[#1e1e1e] text-[#cccccc] font-mono overflow-hidden">
       {/* VS Code Style Sidebar */}
-      <div className="w-full md:w-14 bg-[#333333] flex flex-row md:flex-col items-center py-2 md:py-4 justify-around md:justify-start md:space-y-6 border-t md:border-t-0 md:border-r border-[#2b2b2b] z-20 order-last md:order-first">
+      <div 
+        onWheel={handleSidebarWheel}
+        onTouchStart={handleSidebarTouchStart}
+        onTouchEnd={handleSidebarTouchEnd}
+        className="w-full md:w-14 bg-[#333333] flex flex-row md:flex-col items-center py-2 md:py-4 justify-around md:justify-start md:space-y-6 border-t md:border-t-0 md:border-r border-[#2b2b2b] z-20 order-last md:order-first touch-none"
+      >
         <button 
           onClick={() => setActiveTab('users')}
           className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'users' ? "text-white border-b-2 md:border-b-0 md:border-l-2 border-blue-500" : "text-[#858585] hover:text-white")}
@@ -954,16 +1031,51 @@ export default function AdminPanel() {
                     <Gamepad2 size={20} className="text-orange-400" />
                     Game Management
                   </h2>
-                  <button 
-                    onClick={() => updateGlobalSetting('isGamesEnabled', !appSettings?.isGamesEnabled)}
-                    className={cn(
-                      "px-4 py-1.5 rounded text-sm font-bold flex items-center gap-2 transition-all",
-                      appSettings?.isGamesEnabled ? "bg-green-600 hover:bg-green-700 text-white" : "bg-red-600 hover:bg-red-700 text-white"
-                    )}
-                  >
-                    <Power size={16} />
-                    {appSettings?.isGamesEnabled ? "Games: Enabled" : "Games: Disabled"}
-                  </button>
+                  <div className="flex gap-2">
+                    <div className="bg-[#252526] border border-[#333333] rounded-lg p-1 flex items-center gap-2">
+                      <span className="text-[10px] text-[#858585] uppercase font-bold px-2">Bulk Reward:</span>
+                      <input 
+                        type="number" 
+                        id="bulk-reward-input"
+                        placeholder="Rate"
+                        className="w-16 bg-[#1e1e1e] border border-[#333333] rounded px-2 py-1 text-xs text-white outline-none"
+                      />
+                      <button 
+                        onClick={async () => {
+                          const input = document.getElementById('bulk-reward-input') as HTMLInputElement;
+                          const rate = parseFloat(input.value);
+                          if (!isNaN(rate)) {
+                            setLoading('bulk-games');
+                            try {
+                              const batch = writeBatch(db);
+                              gameSettings.forEach(game => {
+                                batch.update(doc(db, 'gameSettings', game.id), { earningRate: rate });
+                              });
+                              await batch.commit();
+                              input.value = '';
+                            } catch (error) {
+                              console.error("Bulk update error:", error);
+                            } finally {
+                              setLoading(null);
+                            }
+                          }
+                        }}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-[10px] font-bold transition-all"
+                      >
+                        Apply All
+                      </button>
+                    </div>
+                    <button 
+                      onClick={() => updateGlobalSetting('isGamesEnabled', !appSettings?.isGamesEnabled)}
+                      className={cn(
+                        "px-4 py-1.5 rounded text-sm font-bold flex items-center gap-2 transition-all",
+                        appSettings?.isGamesEnabled ? "bg-green-600 hover:bg-green-700 text-white" : "bg-red-600 hover:bg-red-700 text-white"
+                      )}
+                    >
+                      <Power size={16} />
+                      {appSettings?.isGamesEnabled ? "Games: Enabled" : "Games: Disabled"}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -989,12 +1101,24 @@ export default function AdminPanel() {
                         <div>
                           <label className="block text-[10px] text-[#858585] uppercase font-bold mb-1">Earning Rate (PKR)</label>
                           <div className="flex items-center gap-2">
+                            <button 
+                              onClick={() => updateGameRate(game.id, Math.max(0, game.earningRate - 0.1))}
+                              className="w-8 h-8 rounded bg-[#333333] text-white flex items-center justify-center hover:bg-[#444444]"
+                            >
+                              -
+                            </button>
                             <input 
                               type="number" 
-                              className="w-full bg-[#1e1e1e] border border-[#333333] focus:border-blue-500 rounded px-3 py-1.5 text-sm text-white outline-none"
+                              className="w-full bg-[#1e1e1e] border border-[#333333] focus:border-blue-500 rounded px-3 py-1.5 text-sm text-white outline-none text-center"
                               value={game.earningRate}
                               onChange={(e) => updateGameRate(game.id, parseFloat(e.target.value))}
                             />
+                            <button 
+                              onClick={() => updateGameRate(game.id, game.earningRate + 0.1)}
+                              className="w-8 h-8 rounded bg-[#333333] text-white flex items-center justify-center hover:bg-[#444444]"
+                            >
+                              +
+                            </button>
                             <span className="text-xs text-[#858585]">/win</span>
                           </div>
                         </div>
@@ -1152,14 +1276,120 @@ export default function AdminPanel() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="max-w-2xl space-y-8"
+                className="max-w-2xl space-y-8 relative"
               >
-                <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                  <Settings size={20} className="text-gray-400" />
-                  Global Configuration
-                </h2>
+                <div className="flex justify-between items-center">
+                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                    <Settings size={20} className="text-gray-400" />
+                    Global Configuration
+                  </h2>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                      className="p-2 bg-[#333333] text-white rounded-full hover:bg-[#444444] transition-all"
+                      title="Scroll to Top"
+                    >
+                      <Clock size={16} className="rotate-180" />
+                    </button>
+                    <button 
+                      onClick={() => {
+                        const el = document.getElementById('bottom-settings');
+                        el?.scrollIntoView({ behavior: 'smooth' });
+                      }}
+                      className="p-2 bg-[#333333] text-white rounded-full hover:bg-[#444444] transition-all"
+                      title="Scroll to Bottom"
+                    >
+                      <Clock size={16} />
+                    </button>
+                  </div>
+                </div>
 
                 <div className="space-y-6 bg-[#252526] p-8 rounded-2xl border border-[#333333] shadow-2xl">
+                  <div className="flex flex-col gap-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-white font-medium">Game Modal Ads (Adsterra)</h4>
+                        <p className="text-xs text-[#858585]">Show 300x250 banner ads in game modals</p>
+                      </div>
+                      <button 
+                        onClick={toggleGameAds}
+                        className={cn(
+                          "w-12 h-6 rounded-full transition-all relative",
+                          showGameAds ? "bg-blue-600" : "bg-[#3c3c3c]"
+                        )}
+                      >
+                        <div className={cn(
+                          "absolute top-1 w-4 h-4 bg-white rounded-full transition-all",
+                          showGameAds ? "right-1" : "left-1"
+                        )}></div>
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-white font-medium">Game Social Ads (Ghost Script)</h4>
+                        <p className="text-xs text-[#858585]">Enable/Disable GameAdController's social script</p>
+                      </div>
+                      <button 
+                        onClick={toggleSocialAds}
+                        className={cn(
+                          "w-12 h-6 rounded-full transition-all relative",
+                          showSocialAds ? "bg-purple-600" : "bg-[#3c3c3c]"
+                        )}
+                      >
+                        <div className={cn(
+                          "absolute top-1 w-4 h-4 bg-white rounded-full transition-all",
+                          showSocialAds ? "right-1" : "left-1"
+                        )}></div>
+                      </button>
+                    </div>
+
+                    {showGameAds && (
+                      <div className="flex flex-col gap-4 bg-[#1e1e1e] p-6 rounded-xl border border-[#333333]">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h5 className="text-white text-sm font-medium">Ad Timer (Seconds)</h5>
+                            <p className="text-[10px] text-[#858585]">How long the ad stays visible (0-30s)</p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <button 
+                              onClick={() => updateAdTimer(Math.max(0.1, adTimer - 0.1))}
+                              className="w-8 h-8 rounded-lg bg-[#333333] text-white flex items-center justify-center hover:bg-[#444444] transition-colors"
+                            >
+                              -
+                            </button>
+                            <span className="text-blue-500 font-bold min-w-[50px] text-center text-lg">
+                              {adTimer.toFixed(1)}s
+                            </span>
+                            <button 
+                              onClick={() => updateAdTimer(Math.min(30, adTimer + 0.1))}
+                              className="w-8 h-8 rounded-lg bg-[#333333] text-white flex items-center justify-center hover:bg-[#444444] transition-colors"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+                        
+                        <div className="flex gap-2">
+                          {[1.3, 5, 10, 15].map((val) => (
+                            <button
+                              key={val}
+                              onClick={() => updateAdTimer(val)}
+                              className={cn(
+                                "px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all",
+                                adTimer === val 
+                                  ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20" 
+                                  : "bg-[#333333] text-[#858585] hover:bg-[#444444] hover:text-white"
+                              )}
+                            >
+                              {val}s {val === 1.3 && "(Recommended)"}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   <div className="flex items-center justify-between">
                     <div>
                       <h4 className="text-white font-medium">Maintenance Mode</h4>
@@ -1351,6 +1581,12 @@ export default function AdminPanel() {
                       <span>Current: {appSettings?.adFrequency}</span>
                       <span>50 (Max)</span>
                     </div>
+                  </div>
+
+                  <div id="bottom-settings" className="pt-4 border-t border-[#333333]">
+                    <p className="text-[10px] text-[#858585] text-center italic">
+                      Swipe up/down on the sidebar to quickly switch between admin tabs.
+                    </p>
                   </div>
                 </div>
               </motion.div>

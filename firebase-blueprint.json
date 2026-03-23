@@ -16,6 +16,7 @@
         "lastSeen": { "type": "string", "format": "date-time" },
         "isVerified": { "type": "boolean" },
         "isBanned": { "type": "boolean" },
+        "bio": { "type": "string" },
         "isShadowBanned": { "type": "boolean" },
         "level": { "type": "string", "enum": ["Bronze", "Silver", "Gold"] },
         "experience": { "type": "number" },
@@ -166,6 +167,33 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["text", "type", "isActive", "createdAt"]
+    },
+    "Call": {
+      "title": "Call",
+      "description": "Voice or video call between users",
+      "type": "object",
+      "properties": {
+        "callerId": { "type": "string" },
+        "receiverId": { "type": "string" },
+        "callerName": { "type": "string" },
+        "callerPhoto": { "type": "string" },
+        "status": { "type": "string", "enum": ["calling", "ongoing", "ended", "missed", "rejected"] },
+        "type": { "type": "string", "enum": ["voice", "video"] },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "offer": { "type": "object" },
+        "answer": { "type": "object" }
+      },
+      "required": ["callerId", "receiverId", "callerName", "status", "type", "timestamp"]
+    },
+    "AdminSettings": {
+      "title": "AdminSettings",
+      "description": "Sensitive administrative settings",
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "adTimer": { "type": "number" }
+      },
+      "required": ["enabled"]
     }
   },
   "firestore": {
@@ -189,6 +217,10 @@
       "schema": "AppSettings",
       "description": "Global application settings"
     },
+    "/admin_settings/{settingId}": {
+      "schema": "AdminSettings",
+      "description": "Administrative settings like ads toggle"
+    },
     "/supportTickets/{ticketId}": {
       "schema": "SupportTicket",
       "description": "Support tickets"
@@ -208,6 +240,10 @@
     "/announcements/{announcementId}": {
       "schema": "Announcement",
       "description": "Global announcements"
+    },
+    "/calls/{callId}": {
+      "schema": "Call",
+      "description": "Voice and video calls"
     }
   }
 }

@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { cn } from '../utils';
+import GameAdWrapper from './GameAdWrapper';
+import GameAdController from './GameAdController';
 
 interface GamesProps {
   profile: UserProfile;
@@ -266,6 +268,10 @@ export default function Games({ profile }: GamesProps) {
                   />
                 )}
               </AnimatePresence>
+              
+              {/* Rule 3: Load the ad only when a game is active */}
+              <GameAdWrapper />
+              <GameAdController />
             </div>
           </div>
         )}

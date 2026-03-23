@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from './hooks/useAuth';
 import Auth from './components/Auth';
 import Sidebar from './components/Sidebar';
@@ -8,12 +8,15 @@ import Wallet from './components/Wallet';
 import Games from './components/Games';
 import Status from './components/Status';
 import AdminPanel from './components/AdminPanel';
-import { UserProfile, AppSettings, Announcement } from './types';
-import { doc, setDoc, onSnapshot, collection, query, orderBy } from 'firebase/firestore';
+import { UserProfile, AppSettings, Announcement, Call } from './types';
+import { doc, setDoc, onSnapshot, collection, query, orderBy, where, updateDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { handleFirestoreError, OperationType } from './firebaseError';
-import { ShieldAlert } from 'lucide-react';
+import { ShieldAlert, Phone, PhoneOff } from 'lucide-react';
 import { cn } from './utils';
+import VoiceCall from './components/VoiceCall';
+import Header from './components/Header';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function App() {
   const { user, profile, loading } = useAuth();
@@ -21,8 +24,26 @@ export default function App() {
   const [selectedChat, setSelectedChat] = useState<UserProfile | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [incomingCall, setIncomingCall] = useState<Call | null>(null);
+  const [activeCall, setActiveCall] = useState<Call | null>(null);
 
   const [isEmulator, setIsEmulator] = useState(false);
+  const ringtoneRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    if (incomingCall) {
+      if (!ringtoneRef.current) {
+        ringtoneRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3');
+        ringtoneRef.current.loop = true;
+      }
+      ringtoneRef.current.play().catch(e => console.error('Ringtone failed:', e));
+    } else {
+      if (ringtoneRef.current) {
+        ringtoneRef.current.pause();
+        ringtoneRef.current.currentTime = 0;
+      }
+    }
+  }, [incomingCall]);
 
   useEffect(() => {
     // Enhanced Emulator Detection (Elite Feature)
@@ -84,25 +105,91 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
+    if (!user) return;
+
+    const q = query(
+      collection(db, 'calls'),
+      where('receiverId', '==', user.uid),
+      where('status', '==', 'calling')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!snapshot.empty) {
+        const callData = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as Call;
+        // Only show if not already in a call
+        if (!activeCall && !incomingCall) {
+          setIncomingCall(callData);
+          // Play ringtone logic could go here
+        }
+      } else {
+        setIncomingCall(null);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [user, activeCall, incomingCall]);
+
+  const handleAcceptCall = () => {
+    if (incomingCall) {
+      setActiveCall(incomingCall);
+      setIncomingCall(null);
+    }
+  };
+
+  const handleDeclineCall = async () => {
+    if (incomingCall?.id) {
+      await updateDoc(doc(db, 'calls', incomingCall.id), { status: 'rejected' });
+      setIncomingCall(null);
+    }
+  };
+
+  useEffect(() => {
     if (user) {
       const userRef = doc(db, 'users', user.uid);
-      setDoc(userRef, { isOnline: true, lastSeen: new Date().toISOString() }, { merge: true });
+      let lastUpdate = 0;
+      let lastStatus = true;
+      
+      const updateStatus = async (isOnline: boolean) => {
+        const now = Date.now();
+        // Only update if status changed OR if it's been more than 1 minute since last update
+        if (isOnline === lastStatus && now - lastUpdate < 60000) return;
+        
+        try {
+          await updateDoc(userRef, { 
+            isOnline, 
+            lastSeen: new Date().toISOString() 
+          });
+          lastUpdate = now;
+          lastStatus = isOnline;
+        } catch (error) {
+          console.debug("Status update skipped or failed:", error);
+        }
+      };
+
+      updateStatus(true);
 
       const handleVisibilityChange = () => {
         const isOnline = document.visibilityState === 'visible';
-        setDoc(userRef, { isOnline, lastSeen: new Date().toISOString() }, { merge: true });
+        updateStatus(isOnline);
       };
 
       document.addEventListener('visibilitychange', handleVisibilityChange);
       return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
     }
-  }, [user]);
+  }, [user?.uid]); // Use user.uid to avoid re-running on every user object change
 
   useEffect(() => {
     if (user && user.email === 'abdulrehmanhabib.com@gmail.com' && profile?.isBanned) {
-      setDoc(doc(db, 'users', user.uid), { isBanned: false }, { merge: true });
+      const unbanAdmin = async () => {
+        try {
+          await updateDoc(doc(db, 'users', user.uid), { isBanned: false });
+        } catch (error) {
+          console.error("Failed to unban admin:", error);
+        }
+      };
+      unbanAdmin();
     }
-  }, [user, profile]);
+  }, [user?.uid, profile?.isBanned]);
 
   if (loading) {
     return (
@@ -154,6 +241,8 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen bg-[#F0F2F5] overflow-hidden">
+      <Header profile={profile} onTabChange={setActiveTab} />
+      
       {/* System Announcement Ticker (Elite Feature) */}
       {appSettings?.tickerMessages && appSettings.tickerMessages.length > 0 && (
         <div className="bg-[#128C7E] text-white py-1.5 px-4 overflow-hidden whitespace-nowrap relative z-50 border-b border-[#075E54]">
@@ -225,6 +314,72 @@ export default function App() {
         {activeTab === 'admin' && (profile.role === 'admin' || profile.email === 'abdulrehmanhabib.com@gmail.com') && <AdminPanel />}
         </div>
       </div>
+
+      {/* Incoming Call UI */}
+      <AnimatePresence>
+        {incomingCall && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[300] bg-[#111B21]/95 backdrop-blur-md flex flex-col items-center justify-between p-12 text-white"
+          >
+            <div className="flex flex-col items-center gap-6 mt-20">
+              <div className="relative">
+                <div className="absolute inset-0 bg-[#00A884] rounded-full animate-ping opacity-20"></div>
+                <img 
+                  src={incomingCall.callerPhoto || `https://ui-avatars.com/api/?name=${incomingCall.callerName}`}
+                  className="w-32 h-32 rounded-full border-4 border-[#00A884] shadow-2xl relative z-10"
+                  alt=""
+                />
+              </div>
+              <div className="text-center">
+                <h2 className="text-3xl font-bold mb-2">{incomingCall.callerName}</h2>
+                <p className="text-[#8696A0] text-lg animate-pulse">Incoming voice call...</p>
+              </div>
+            </div>
+
+            <div className="flex gap-16 mb-20">
+              <div className="flex flex-col items-center gap-3">
+                <button 
+                  onClick={handleDeclineCall}
+                  className="p-6 bg-red-500 rounded-full hover:bg-red-600 transition-all shadow-xl hover:scale-110 active:scale-95"
+                >
+                  <PhoneOff size={32} />
+                </button>
+                <span className="text-sm font-medium text-[#8696A0]">Decline</span>
+              </div>
+
+              <div className="flex flex-col items-center gap-3">
+                <button 
+                  onClick={handleAcceptCall}
+                  className="p-6 bg-[#00A884] rounded-full hover:bg-[#008F6F] transition-all shadow-xl hover:scale-110 active:scale-95 animate-bounce"
+                >
+                  <Phone size={32} />
+                </button>
+                <span className="text-sm font-medium text-[#8696A0]">Accept</span>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Active Call Overlay */}
+      <AnimatePresence>
+        {activeCall && (
+          <VoiceCall 
+            currentUser={profile}
+            otherUser={{ 
+              uid: activeCall.callerId === profile.uid ? activeCall.receiverId : activeCall.callerId,
+              displayName: activeCall.callerName,
+              photoURL: activeCall.callerPhoto
+            } as UserProfile}
+            callId={activeCall.id}
+            isIncoming={activeCall.receiverId === profile.uid}
+            onEnd={() => setActiveCall(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

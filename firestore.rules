@@ -78,6 +78,21 @@ service cloud.firestore {
              data.action is string;
     }
 
+    function isValidCall(data) {
+      return data.callerId is string &&
+             data.receiverId is string &&
+             data.callerName is string &&
+             data.status in ['calling', 'ongoing', 'ended', 'missed', 'rejected'] &&
+             data.type in ['voice', 'video'];
+    }
+
+    function isValidAdminSetting(data) {
+      return (!('enabled' in data) || data.enabled is bool) &&
+             (!('isAdsEnabled' in data) || data.isAdsEnabled is bool) &&
+             (!('isSocialAdsEnabled' in data) || data.isSocialAdsEnabled is bool) &&
+             (!('adTimer' in data) || (data.adTimer is number && data.adTimer >= 0 && data.adTimer <= 30));
+    }
+
     // ===============================================================
     // Collection Rules
     // ===============================================================
@@ -119,6 +134,11 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    match /admin_settings/{settingId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() && isValidAdminSetting(request.resource.data);
+    }
+
     match /supportTickets/{ticketId} {
       allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
       allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid && isValidSupportTicket(request.resource.data);
@@ -143,6 +163,23 @@ service cloud.firestore {
     match /announcements/{announcementId} {
       allow read: if isAuthenticated();
       allow write: if isAdmin();
+    }
+
+    match /calls/{callId} {
+      allow read: if isAuthenticated() && (resource.data.callerId == request.auth.uid || resource.data.receiverId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.callerId == request.auth.uid && isValidCall(request.resource.data);
+      allow update: if isAuthenticated() && (resource.data.callerId == request.auth.uid || resource.data.receiverId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+
+      match /offerCandidates/{candidateId} {
+        allow read: if isAuthenticated() && (get(/databases/$(database)/documents/calls/$(callId)).data.callerId == request.auth.uid || get(/databases/$(database)/documents/calls/$(callId)).data.receiverId == request.auth.uid || isAdmin());
+        allow create: if isAuthenticated() && get(/databases/$(database)/documents/calls/$(callId)).data.callerId == request.auth.uid;
+      }
+
+      match /answerCandidates/{candidateId} {
+        allow read: if isAuthenticated() && (get(/databases/$(database)/documents/calls/$(callId)).data.callerId == request.auth.uid || get(/databases/$(database)/documents/calls/$(callId)).data.receiverId == request.auth.uid || isAdmin());
+        allow create: if isAuthenticated() && get(/databases/$(database)/documents/calls/$(callId)).data.receiverId == request.auth.uid;
+      }
     }
   }
 }

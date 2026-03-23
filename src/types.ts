@@ -10,6 +10,7 @@ export interface UserProfile {
   lastSeen: string;
   isVerified: boolean;
   isBanned: boolean;
+  bio?: string;
   isShadowBanned?: boolean;
   level: 'Bronze' | 'Silver' | 'Gold';
   experience: number;
@@ -34,6 +35,8 @@ export interface Message {
   audioUrl?: string;
   replyTo?: string;
   isForwarded?: boolean;
+  deletedFor?: string[];
+  isDeletedForEveryone?: boolean;
 }
 
 export interface Withdrawal {
@@ -127,4 +130,17 @@ export interface Status {
   caption: string;
   timestamp: any;
   views: string[];
+}
+
+export interface Call {
+  id?: string;
+  callerId: string;
+  receiverId: string;
+  callerName: string;
+  callerPhoto: string;
+  status: 'calling' | 'ongoing' | 'ended' | 'missed' | 'rejected';
+  type: 'voice' | 'video';
+  timestamp: any;
+  offer?: any;
+  answer?: any;
 }

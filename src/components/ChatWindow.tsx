@@ -3,10 +3,149 @@ import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp,
 import { db } from '../firebase';
 import { UserProfile, Message } from '../types';
 import { handleFirestoreError, OperationType } from '../firebaseError';
-import { Send, Plus, Search, MoreVertical, Smile, Mic, Gamepad2, ArrowLeft, Image, BadgeCheck, XCircle } from 'lucide-react';
+import { Send, Plus, Search, MoreVertical, Smile, Mic, Gamepad2, ArrowLeft, Image, BadgeCheck, XCircle, Phone, Play, Pause, Trash2, Share2 } from 'lucide-react';
 import { formatMessageTime, cn, formatChatDate } from '../utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { updateDoc, doc } from 'firebase/firestore';
+import VoiceCall from './VoiceCall';
+
+const VoiceMessage = ({ audioUrl }: { audioUrl: string }) => {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [duration, setDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [error, setError] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    if (!audioUrl) {
+      setError(true);
+      return;
+    }
+
+    try {
+      const audio = new Audio(audioUrl);
+      audioRef.current = audio;
+      
+      const setAudioData = () => {
+        if (!isNaN(audio.duration)) setDuration(audio.duration);
+      };
+      const setAudioTime = () => setCurrentTime(audio.currentTime);
+      const onEnded = () => setIsPlaying(false);
+      const onError = () => {
+        // Only log error if it's not a temporary blob URL or a large data URL (which are expected to fail on some browsers)
+        if (!audioUrl.startsWith('blob:') && !audioUrl.startsWith('data:')) {
+          console.error('Audio load error for URL:', audioUrl.slice(0, 50) + '...');
+        }
+        setError(true);
+      };
+
+      audio.addEventListener('loadedmetadata', setAudioData);
+      audio.addEventListener('timeupdate', setAudioTime);
+      audio.addEventListener('ended', onEnded);
+      audio.addEventListener('error', onError);
+
+      return () => {
+        audio.pause();
+        audio.removeEventListener('loadedmetadata', setAudioData);
+        audio.removeEventListener('timeupdate', setAudioTime);
+        audio.removeEventListener('ended', onEnded);
+        audio.removeEventListener('error', onError);
+      };
+    } catch (e) {
+      console.error('Failed to initialize audio:', e);
+      setError(true);
+    }
+  }, [audioUrl]);
+
+  if (error) {
+    return (
+      <div className="flex items-center gap-2 py-2 text-red-500 italic text-[11px] bg-red-50 px-3 rounded-lg border border-red-100">
+        <XCircle size={14} />
+        <span>Audio unavailable</span>
+      </div>
+    );
+  }
+
+  const togglePlayback = () => {
+    if (!audioRef.current) return;
+    
+    if (isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      const playPromise = audioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
+          setIsPlaying(true);
+        }).catch(error => {
+          if (error.name !== 'AbortError') {
+            console.error("Playback failed:", error);
+          }
+        });
+      }
+    }
+  };
+
+  const formatTime = (time: number) => {
+    if (isNaN(time)) return "0:00";
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  // Generate a pseudo-waveform
+  const waveformBars = [30, 50, 80, 40, 60, 90, 30, 50, 70, 40, 60, 80, 30, 50, 90, 40, 60, 70, 30, 50];
+
+  return (
+    <div className="flex items-center gap-3 py-2 min-w-[220px] bg-black/5 px-3 rounded-xl border border-black/5">
+      <button 
+        onClick={togglePlayback}
+        className="w-10 h-10 flex items-center justify-center bg-[#00A884] text-white rounded-full hover:bg-[#008F70] transition-all shadow-sm active:scale-95"
+      >
+        {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-1" />}
+      </button>
+      
+      <div className="flex-1 flex items-end gap-[2px] h-8 relative">
+        {waveformBars.map((height, i) => {
+          const progress = (currentTime / (duration || 1)) * 100;
+          const barProgress = (i / waveformBars.length) * 100;
+          const isActive = barProgress <= progress;
+          
+          return (
+            <div 
+              key={i}
+              className={cn(
+                "w-[3px] rounded-full transition-all duration-200",
+                isActive ? "bg-[#00A884]" : "bg-gray-300"
+              )}
+              style={{ height: `${height}%` }}
+            />
+          );
+        })}
+        
+        {/* Hidden range input for seeking */}
+        <input 
+          type="range"
+          min="0"
+          max={duration || 0}
+          value={currentTime}
+          onChange={(e) => {
+            const time = parseFloat(e.target.value);
+            if (audioRef.current) audioRef.current.currentTime = time;
+            setCurrentTime(time);
+          }}
+          className="absolute inset-0 opacity-0 cursor-pointer z-10"
+        />
+      </div>
+
+      <div className="flex flex-col items-end min-w-[35px]">
+        <span className="text-[10px] font-medium text-[#667781]">
+          {isPlaying ? formatTime(currentTime) : formatTime(duration)}
+        </span>
+      </div>
+    </div>
+  );
+};
 
 interface ChatWindowProps {
   chat: UserProfile;
@@ -20,7 +159,26 @@ export default function ChatWindow({ chat, currentUser, onBack }: ChatWindowProp
   const [showGamesMenu, setShowGamesMenu] = useState(false);
   const [isWallpaperModalOpen, setIsWallpaperModalOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [activeCall, setActiveCall] = useState<boolean>(false);
+  const [messageToDelete, setMessageToDelete] = useState<Message | null>(null);
+  const [messageToForward, setMessageToForward] = useState<Message | null>(null);
+  const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // Fetch all users for forwarding
+    const q = query(collection(db, 'users'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const usersList = snapshot.docs
+        .map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile))
+        .filter(u => u.uid !== currentUser.uid);
+      setAllUsers(usersList);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'users');
+    });
+
+    return () => unsubscribe();
+  }, [currentUser.uid]);
 
   useEffect(() => {
     const handleOnline = () => {
@@ -30,7 +188,11 @@ export default function ChatWindow({ chat, currentUser, onBack }: ChatWindowProp
       if (queue.length > 0) {
         queue.forEach(async (msg: Message) => {
           try {
-            await addDoc(collection(db, 'messages'), { ...msg, timestamp: serverTimestamp() });
+            await addDoc(collection(db, 'messages'), { 
+              ...msg, 
+              replyTo: msg.replyTo || null,
+              timestamp: serverTimestamp() 
+            });
           } catch (e) {
             console.error('Failed to sync message:', e);
           }
@@ -114,7 +276,7 @@ export default function ChatWindow({ chat, currentUser, onBack }: ChatWindowProp
       timestamp: serverTimestamp(),
       status: 'sent',
       type: 'text',
-      replyTo: replyingTo?.id
+      replyTo: replyingTo?.id || null
     };
 
     setNewMessage('');
@@ -141,7 +303,8 @@ export default function ChatWindow({ chat, currentUser, onBack }: ChatWindowProp
           text: `Your current balance is: Rs. ${currentUser.balance.toFixed(2)}`,
           timestamp: serverTimestamp(),
           status: 'sent',
-          type: 'text'
+          type: 'text',
+          replyTo: null
         };
         setTimeout(async () => {
           await addDoc(collection(db, 'messages'), botReply);
@@ -154,13 +317,28 @@ export default function ChatWindow({ chat, currentUser, onBack }: ChatWindowProp
 
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
+  const [recordedAudio, setRecordedAudio] = useState<{ blob: Blob; url: string } | null>(null);
+  const [isPlayingPreview, setIsPlayingPreview] = useState(false);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
   const startRecording = async () => {
+    if (recordedAudio) return; // Don't start if we have a pending recording
+    
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      alert('Your browser does not support audio recording.');
+      return;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      
+      // Find best supported MIME type for recording
+      const mimeTypes = ['audio/webm', 'audio/ogg', 'audio/mp4', 'audio/aac', 'audio/mpeg'];
+      const supportedType = mimeTypes.find(type => MediaRecorder.isTypeSupported(type));
+      
+      const mediaRecorder = new MediaRecorder(stream, supportedType ? { mimeType: supportedType } : {});
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
@@ -168,23 +346,15 @@ export default function ChatWindow({ chat, currentUser, onBack }: ChatWindowProp
         if (e.data.size > 0) audioChunksRef.current.push(e.data);
       };
 
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        // In a real app, upload to Firebase Storage
-        // For now, we'll just log it
-        console.log('Audio recorded:', audioBlob);
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType || 'audio/webm' });
+        setRecordedAudio({
+          blob: audioBlob,
+          url: URL.createObjectURL(audioBlob)
+        });
         
-        // Send as voice message
-        const msg: Message = {
-          senderId: currentUser.uid,
-          receiverId: chat.uid,
-          text: 'Voice Message',
-          timestamp: serverTimestamp(),
-          status: 'sent',
-          type: 'voice',
-          audioUrl: URL.createObjectURL(audioBlob) // Mock URL
-        };
-        await addDoc(collection(db, 'messages'), msg);
+        // Stop all tracks to release microphone
+        stream.getTracks().forEach(track => track.stop());
       };
 
       mediaRecorder.start();
@@ -192,8 +362,13 @@ export default function ChatWindow({ chat, currentUser, onBack }: ChatWindowProp
       setRecordingTime(0);
       const timer = setInterval(() => setRecordingTime(prev => prev + 1), 1000);
       (mediaRecorder as any).timer = timer;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error starting recording:', error);
+      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+        alert('Microphone permission denied. Please enable microphone access in your browser settings and ensure the site is served over HTTPS.');
+      } else {
+        alert('Could not start recording. Please check your microphone connection.');
+      }
     }
   };
 
@@ -202,6 +377,145 @@ export default function ChatWindow({ chat, currentUser, onBack }: ChatWindowProp
       mediaRecorderRef.current.stop();
       setIsRecording(false);
       clearInterval((mediaRecorderRef.current as any).timer);
+    }
+  };
+
+  const handleSendVoiceMessage = async () => {
+    if (!recordedAudio) return;
+
+    if (previewAudioRef.current) {
+      previewAudioRef.current.pause();
+      previewAudioRef.current = null;
+    }
+    setIsPlayingPreview(false);
+
+    // Convert blob to base64 for persistent storage in Firestore
+    // Note: Firestore has 1MB limit. This is suitable for short voice notes.
+    const reader = new FileReader();
+    reader.readAsDataURL(recordedAudio.blob);
+    reader.onloadend = async () => {
+      const base64Audio = reader.result as string;
+      
+      // Firestore has 1MB limit. Check size (approx 1.37x larger in base64)
+      if (base64Audio.length > 1000000) {
+        alert('Voice message is too long. Please record a shorter message (under 30 seconds).');
+        setRecordedAudio(null);
+        return;
+      }
+
+      const msg: Message = {
+        senderId: currentUser.uid,
+        receiverId: chat.uid,
+        text: 'Voice Message',
+        timestamp: serverTimestamp(),
+        status: 'sent',
+        type: 'voice',
+        audioUrl: base64Audio,
+        replyTo: replyingTo?.id || null
+      };
+
+      try {
+        await addDoc(collection(db, 'messages'), msg);
+        setRecordedAudio(null);
+        setReplyingTo(null);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.CREATE, 'messages');
+      }
+    };
+  };
+
+  const cancelRecording = () => {
+    if (recordedAudio) {
+      if (previewAudioRef.current) {
+        previewAudioRef.current.pause();
+        previewAudioRef.current = null;
+      }
+      setIsPlayingPreview(false);
+      URL.revokeObjectURL(recordedAudio.url);
+      setRecordedAudio(null);
+    }
+  };
+
+  const togglePreviewPlayback = () => {
+    if (!recordedAudio) return;
+    
+    if (!previewAudioRef.current || previewAudioRef.current.src !== recordedAudio.url) {
+      if (previewAudioRef.current) {
+        previewAudioRef.current.pause();
+      }
+      previewAudioRef.current = new Audio(recordedAudio.url);
+      previewAudioRef.current.onended = () => setIsPlayingPreview(false);
+      previewAudioRef.current.onerror = () => {
+        console.error('Preview audio load failed');
+        setIsPlayingPreview(false);
+      };
+    }
+
+    if (isPlayingPreview) {
+      previewAudioRef.current.pause();
+      setIsPlayingPreview(false);
+    } else {
+      const playPromise = previewAudioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
+          setIsPlayingPreview(true);
+        }).catch(error => {
+          if (error.name !== 'AbortError') {
+            console.error("Preview playback failed:", error);
+          }
+        });
+      }
+    }
+  };
+
+  const handleDeleteForMe = async (msg: Message) => {
+    if (!msg.id) return;
+    const deletedFor = msg.deletedFor || [];
+    if (!deletedFor.includes(currentUser.uid)) {
+      deletedFor.push(currentUser.uid);
+      try {
+        await updateDoc(doc(db, 'messages', msg.id), { deletedFor });
+        setMessageToDelete(null);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.UPDATE, 'messages');
+      }
+    }
+  };
+
+  const handleDeleteForEveryone = async (msg: Message) => {
+    if (!msg.id) return;
+    try {
+      await updateDoc(doc(db, 'messages', msg.id), { 
+        isDeletedForEveryone: true,
+        text: 'This message was deleted' 
+      });
+      setMessageToDelete(null);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'messages');
+    }
+  };
+
+  const handleForward = async (targetUser: UserProfile) => {
+    if (!messageToForward) return;
+    
+    const forwardedMsg: Message = {
+      senderId: currentUser.uid,
+      receiverId: targetUser.uid,
+      text: messageToForward.text,
+      timestamp: serverTimestamp(),
+      status: 'sent',
+      type: messageToForward.type,
+      audioUrl: messageToForward.audioUrl || null,
+      replyTo: null,
+      isForwarded: true
+    };
+
+    try {
+      await addDoc(collection(db, 'messages'), forwardedMsg);
+      setMessageToForward(null);
+      alert(`Message forwarded to ${targetUser.displayName}`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'messages');
     }
   };
 
@@ -248,6 +562,13 @@ export default function ChatWindow({ chat, currentUser, onBack }: ChatWindowProp
           </div>
         </div>
         <div className="flex gap-4 text-[#54656F]">
+          <button 
+            onClick={() => setActiveCall(true)}
+            className="p-2 hover:bg-gray-200 rounded-full transition-colors" 
+            title="Voice Call"
+          >
+            <Phone size={20} />
+          </button>
           <button onClick={() => setIsWallpaperModalOpen(true)} className="p-2 hover:bg-gray-200 rounded-full transition-colors" title="Change Wallpaper">
             <Image size={20} />
           </button>
@@ -256,12 +577,23 @@ export default function ChatWindow({ chat, currentUser, onBack }: ChatWindowProp
         </div>
       </div>
 
+      {/* Voice Call Overlay */}
+      <AnimatePresence>
+        {activeCall && (
+          <VoiceCall 
+            currentUser={currentUser}
+            otherUser={chat}
+            onEnd={() => setActiveCall(false)}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Messages Area */}
       <div 
         ref={scrollRef}
         className="flex-1 overflow-y-auto p-4 space-y-2 z-10"
       >
-        {messages.map((msg) => (
+        {messages.filter(m => !m.deletedFor?.includes(currentUser.uid)).map((msg) => (
           <motion.div
             key={msg.id}
             drag="x"
@@ -278,11 +610,49 @@ export default function ChatWindow({ chat, currentUser, onBack }: ChatWindowProp
             <div
               className={cn(
                 "max-w-[70%] px-3 py-1.5 rounded-lg shadow-sm relative group",
-                msg.senderId === currentUser.uid 
-                  ? "bg-[#D9FDD3] rounded-tr-none" 
-                  : "bg-white rounded-tl-none"
+                msg.isDeletedForEveryone ? "bg-gray-100 italic text-gray-400" : (
+                  msg.senderId === currentUser.uid 
+                    ? "bg-[#D9FDD3] rounded-tr-none" 
+                    : "bg-white rounded-tl-none"
+                )
               )}
             >
+              {!msg.isDeletedForEveryone && msg.senderId === currentUser.uid && (
+                <div className="absolute -left-16 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button 
+                    onClick={() => setMessageToDelete(msg)}
+                    className="p-1 text-gray-400 hover:text-red-500"
+                    title="Delete"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                  <button 
+                    onClick={() => setMessageToForward(msg)}
+                    className="p-1 text-gray-400 hover:text-[#00A884]"
+                    title="Forward"
+                  >
+                    <Share2 size={16} />
+                  </button>
+                </div>
+              )}
+              {!msg.isDeletedForEveryone && msg.senderId !== currentUser.uid && (
+                <div className="absolute -right-16 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button 
+                    onClick={() => setMessageToForward(msg)}
+                    className="p-1 text-gray-400 hover:text-[#00A884]"
+                    title="Forward"
+                  >
+                    <Share2 size={16} />
+                  </button>
+                  <button 
+                    onClick={() => setMessageToDelete(msg)}
+                    className="p-1 text-gray-400 hover:text-red-500"
+                    title="Delete"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              )}
               {msg.replyTo && (
                 <div className="bg-black/5 border-l-4 border-[#00A884] p-2 rounded mb-1 text-[10px] text-[#667781]">
                   {messages.find(m => m.id === msg.replyTo)?.text.slice(0, 50)}...
@@ -297,13 +667,7 @@ export default function ChatWindow({ chat, currentUser, onBack }: ChatWindowProp
                 </div>
               )}
               {msg.type === 'voice' ? (
-                <div className="flex items-center gap-2 py-2 min-w-[200px]">
-                  <button className="text-[#00A884]"><Gamepad2 size={24} /></button>
-                  <div className="flex-1 h-1 bg-gray-200 rounded-full relative">
-                    <div className="absolute left-0 top-0 h-full bg-[#00A884] rounded-full w-1/3" />
-                  </div>
-                  <span className="text-[10px] text-[#667781]">0:05</span>
-                </div>
+                <VoiceMessage audioUrl={msg.audioUrl || ''} />
               ) : (
                 <p className="text-[#111B21] text-sm break-words pr-12">{msg.text}</p>
               )}
@@ -394,6 +758,31 @@ export default function ChatWindow({ chat, currentUser, onBack }: ChatWindowProp
           >
             <Send size={24} />
           </button>
+        ) : recordedAudio ? (
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={cancelRecording}
+              className="p-2 text-red-500 hover:bg-red-50 rounded-full"
+            >
+              <XCircle size={24} />
+            </button>
+            <div className="flex items-center gap-2 bg-[#D9FDD3] px-3 py-1.5 rounded-full">
+              <button 
+                onClick={togglePreviewPlayback}
+                className="p-1 text-[#00A884] hover:bg-white/50 rounded-full transition-colors"
+              >
+                {isPlayingPreview ? <Pause size={16} /> : <Play size={16} />}
+              </button>
+              <Mic size={16} className="text-[#00A884]" />
+              <span className="text-xs font-medium text-[#111B21]">Voice Ready</span>
+            </div>
+            <button 
+              onClick={handleSendVoiceMessage}
+              className="p-2 text-[#00A884] hover:bg-[#D9FDD3] rounded-full"
+            >
+              <Send size={24} />
+            </button>
+          </div>
         ) : (
           <div className="flex items-center gap-2">
             {isRecording && (
@@ -403,21 +792,99 @@ export default function ChatWindow({ chat, currentUser, onBack }: ChatWindowProp
               </div>
             )}
             <button 
-              onMouseDown={startRecording}
-              onMouseUp={stopRecording}
-              onTouchStart={startRecording}
-              onTouchEnd={stopRecording}
+              onClick={isRecording ? stopRecording : startRecording}
               className={cn(
-                "p-2 rounded-full transition-all",
-                isRecording ? "bg-red-500 text-white scale-125" : "text-[#54656F] hover:bg-gray-200"
+                "p-2 rounded-full transition-all flex items-center justify-center",
+                isRecording ? "bg-red-500 text-white scale-110 shadow-lg" : "text-[#54656F] hover:bg-gray-200"
               )}
+              title={isRecording ? "Stop Recording" : "Start Recording"}
             >
-              <Mic size={24} />
+              {isRecording ? (
+                <div className="w-4 h-4 bg-white rounded-sm" />
+              ) : (
+                <Mic size={24} />
+              )}
             </button>
           </div>
         )}
       </div>
     </div>
+
+    {/* Message Deletion Modal */}
+    <AnimatePresence>
+      {messageToForward && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="bg-white w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[80vh]"
+          >
+            <div className="p-4 border-b border-gray-100 flex justify-between items-center">
+              <h3 className="text-lg font-bold text-[#111B21]">Forward to...</h3>
+              <button onClick={() => setMessageToForward(null)} className="text-[#54656F] hover:text-[#111B21]">
+                <XCircle size={24} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2">
+              {allUsers.map(user => (
+                <button
+                  key={user.uid}
+                  onClick={() => handleForward(user)}
+                  className="w-full flex items-center p-3 hover:bg-gray-50 rounded-xl transition-colors gap-3"
+                >
+                  <img
+                    src={user.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}`}
+                    alt={user.displayName}
+                    className="w-10 h-10 rounded-full border border-gray-200"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="text-left">
+                    <p className="font-medium text-[#111B21]">{user.displayName}</p>
+                    <p className="text-xs text-[#667781]">{user.phoneNumber || user.email}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {messageToDelete && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="bg-white w-full max-w-xs rounded-2xl overflow-hidden shadow-2xl p-6"
+          >
+            <h3 className="text-lg font-bold text-[#111B21] mb-4">Delete message?</h3>
+            <div className="space-y-3">
+              <button 
+                onClick={() => handleDeleteForMe(messageToDelete)}
+                className="w-full text-left py-2 px-4 hover:bg-gray-100 rounded-lg text-[#111B21] font-medium transition-colors"
+              >
+                Delete for me
+              </button>
+              {messageToDelete.senderId === currentUser.uid && (
+                <button 
+                  onClick={() => handleDeleteForEveryone(messageToDelete)}
+                  className="w-full text-left py-2 px-4 hover:bg-gray-100 rounded-lg text-[#111B21] font-medium transition-colors"
+                >
+                  Delete for everyone
+                </button>
+              )}
+              <button 
+                onClick={() => setMessageToDelete(null)}
+                className="w-full text-left py-2 px-4 hover:bg-gray-100 rounded-lg text-[#00A884] font-bold transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
 
     {/* Wallpaper Picker Modal */}
       <AnimatePresence>
