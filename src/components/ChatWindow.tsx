@@ -48,7 +48,7 @@ const MessageBubble = React.memo(({
           "max-w-[75%] px-4 py-2 rounded-2xl relative group transition-all duration-300",
           msg.isDeletedForEveryone ? "bg-gray-100 italic text-gray-400 shadow-sm" : (
             isOutgoing 
-              ? "bg-[#D9FDD3] rounded-tr-none shadow-md hover:shadow-lg ring-1 ring-[#D9FDD3] hover:ring-[#c5fbc0] shadow-[#D9FDD3]/20" 
+              ? "bg-[#D9FDD3] rounded-tr-none shadow-md hover:shadow-lg ring-1 ring-[#D9FDD3] hover:ring-[#c5fbc0] shadow-[0_0_15px_rgba(217,253,211,0.4)]" 
               : "bg-white rounded-tl-none shadow-sm hover:shadow-md ring-1 ring-white"
           )
         )}

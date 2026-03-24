@@ -216,7 +216,7 @@ export default function Games({ profile }: GamesProps) {
   ];
 
   return (
-    <div className="flex-1 bg-[#F0F2F5] p-4 md:p-8 overflow-y-auto">
+    <div className="flex-1 bg-[#F0F2F5] p-4 md:p-8 overflow-y-auto custom-scrollbar">
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-8">
           <div>

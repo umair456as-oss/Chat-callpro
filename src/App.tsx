@@ -22,6 +22,7 @@ export default function App() {
   const { user, profile, loading } = useAuth();
   const [activeTab, setActiveTab] = useState<'chats' | 'status' | 'wallet' | 'games' | 'admin'>('chats');
   const [selectedChat, setSelectedChat] = useState<UserProfile | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [incomingCall, setIncomingCall] = useState<Call | null>(null);
@@ -241,7 +242,7 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen bg-[#F0F2F5] overflow-hidden">
-      <Header profile={profile} onTabChange={setActiveTab} />
+      <Header profile={profile} onTabChange={setActiveTab} onSearch={setSearchQuery} />
       
       {/* System Announcement Ticker (Elite Feature) */}
       {appSettings?.tickerMessages && appSettings.tickerMessages.length > 0 && (
@@ -283,7 +284,7 @@ export default function App() {
               "w-full md:w-[400px] border-r border-[#D1D7DB] bg-white flex flex-col",
               selectedChat ? "hidden md:flex" : "flex"
             )}>
-              <ChatList onSelectChat={setSelectedChat} selectedChat={selectedChat} />
+              <ChatList onSelectChat={setSelectedChat} selectedChat={selectedChat} searchQuery={searchQuery} />
             </div>
             <div className={cn(
               "flex-1 bg-[#EFEAE2] relative",

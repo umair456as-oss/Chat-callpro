@@ -4,10 +4,11 @@ import { db, auth } from '../firebase';
 import { handleFirestoreError, OperationType } from '../firebaseError';
 import { UserProfile } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, UserPlus, Circle } from 'lucide-react';
+import { Search, UserPlus, Circle, MoreVertical, Filter } from 'lucide-react';
+import { cn } from '../utils';
 
 const ChatSkeleton = () => (
-  <div className="flex items-center p-3 border-b border-[#F0F2F5] animate-pulse">
+  <div className="flex items-center p-3 border-b border-[#F5F6F6] animate-pulse">
     <div className="w-12 h-12 rounded-full bg-gray-200 mr-3" />
     <div className="flex-1 space-y-2">
       <div className="h-4 bg-gray-200 rounded w-1/3" />
@@ -15,18 +16,25 @@ const ChatSkeleton = () => (
     </div>
   </div>
 );
-import { cn } from '../utils';
 
 interface ChatListProps {
   onSelectChat: (chat: UserProfile) => void;
   selectedChat: UserProfile | null;
+  searchQuery?: string;
 }
 
-export default function ChatList({ onSelectChat, selectedChat }: ChatListProps) {
+export default function ChatList({ onSelectChat, selectedChat, searchQuery = '' }: ChatListProps) {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<UserProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Sync internal search with prop search from header
+  useEffect(() => {
+    if (searchQuery !== undefined) {
+      setSearchTerm(searchQuery);
+    }
+  }, [searchQuery]);
 
   useEffect(() => {
     if (!auth.currentUser) return;
@@ -98,104 +106,118 @@ export default function ChatList({ onSelectChat, selectedChat }: ChatListProps) 
     setSearchResults(uniqueResults);
   };
 
-  const displayedUsers = searchTerm ? searchResults : users;
+  const displayedUsers = searchTerm 
+    ? (searchResults.length > 0 ? searchResults : users.filter(u => 
+        u.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        u.email?.toLowerCase().includes(searchTerm.toLowerCase())
+      ))
+    : users;
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="p-3 bg-[#F0F2F5] flex items-center justify-between">
-        <h1 className="text-xl font-bold text-[#111B21]">Chats</h1>
-        <div className="flex gap-4">
-          <button className="text-[#54656F]"><UserPlus size={20} /></button>
+    <div className="flex flex-col h-full bg-white">
+      <div className="p-4 flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-[#111B21] tracking-tight">Chats</h1>
+        <div className="flex gap-2">
+          <button className="p-2 hover:bg-gray-100 rounded-full transition-colors text-[#54656F]"><Filter size={20} /></button>
+          <button className="p-2 hover:bg-gray-100 rounded-full transition-colors text-[#54656F]"><UserPlus size={20} /></button>
         </div>
       </div>
 
-      <div className="p-2 bg-white">
-        <form onSubmit={handleSearch} className="relative">
+      <div className="px-4 pb-2">
+        <form onSubmit={handleSearch} className="relative group">
           <input
             type="text"
-            placeholder="Search by email or phone..."
-            className="w-full bg-[#F0F2F5] py-2 pl-10 pr-4 rounded-lg text-sm focus:outline-none"
+            placeholder="Search or start new chat"
+            className="w-full bg-[#F0F2F5] py-2 pl-12 pr-4 rounded-xl text-sm focus:outline-none focus:bg-white focus:ring-1 focus:ring-[#00A884] transition-all border border-transparent focus:border-transparent"
             value={searchTerm}
             onChange={(e) => {
               setSearchTerm(e.target.value);
               if (!e.target.value) setSearchResults([]);
             }}
           />
-          <Search className="absolute left-3 top-2.5 text-[#54656F]" size={16} />
+          <Search className="absolute left-4 top-2.5 text-[#54656F] group-focus-within:text-[#00A884] transition-colors" size={18} />
         </form>
       </div>
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar">
+      <div className="flex-1 overflow-y-auto custom-scrollbar mt-2">
         <AnimatePresence mode="popLayout">
           {isLoading ? (
-            Array.from({ length: 8 }).map((_, i) => <ChatSkeleton key={i} />)
+            Array.from({ length: 10 }).map((_, i) => <ChatSkeleton key={i} />)
           ) : displayedUsers.length === 0 ? (
             <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="p-10 text-center text-[#667781] text-sm"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-12 text-center flex flex-col items-center"
             >
-              {searchTerm ? "No users found." : "No active chats yet. Search for someone to start chatting!"}
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4 text-gray-400">
+                <Search size={32} />
+              </div>
+              <p className="text-[#667781] text-sm font-medium">
+                {searchTerm ? "No results found" : "No active chats yet"}
+              </p>
+              <p className="text-[#8696A0] text-xs mt-1">
+                {searchTerm ? "Try searching for another email" : "Search for friends to start chatting!"}
+              </p>
             </motion.div>
           ) : (
             displayedUsers.map((user) => (
               <motion.div
                 layout
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -10 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
                 key={user.uid}
                 onClick={() => onSelectChat(user)}
                 className={cn(
-                  "flex items-center p-3 cursor-pointer hover:bg-teal-50/10 border-b border-[#F0F2F5] transition-all duration-200 group relative",
-                  selectedChat?.uid === user.uid && "bg-teal-50/20"
+                  "flex items-center p-3 cursor-pointer hover:bg-[#F5F6F6] border-b border-[#F5F6F6] transition-all duration-200 group relative mx-2 rounded-xl mb-1",
+                  selectedChat?.uid === user.uid && "bg-[#F0F2F5] hover:bg-[#F0F2F5]"
                 )}
               >
                 {selectedChat?.uid === user.uid && (
                   <motion.div 
                     layoutId="active-indicator"
-                    className="absolute left-0 w-1 h-8 bg-[#00A884] rounded-r-full" 
+                    className="absolute left-0 w-1.5 h-8 bg-[#00A884] rounded-r-full z-10" 
                   />
                 )}
                 
-                <div className="relative">
+                <div className="relative flex-shrink-0">
                   <div className={cn(
                     "p-[2px] rounded-full transition-all duration-500",
-                    user.isOnline ? "bg-gradient-to-tr from-[#25D366] to-[#00A884]" : "bg-transparent"
+                    user.isOnline ? "bg-gradient-to-tr from-[#25D366] to-[#00A884] shadow-sm" : "bg-gray-200"
                   )}>
                     <img
                       src={user.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}`}
                       alt={user.displayName || ''}
-                      className="w-12 h-12 rounded-full object-cover border-2 border-white"
+                      className="w-14 h-14 rounded-full object-cover border-2 border-white"
                       referrerPolicy="no-referrer"
                     />
                   </div>
                   {user.isOnline && (
-                    <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-[#25D366] rounded-full border-2 border-white shadow-sm"></div>
+                    <div className="absolute bottom-0.5 right-0.5 w-4 h-4 bg-[#25D366] rounded-full border-2 border-white shadow-md"></div>
                   )}
                 </div>
-                <div className="flex-1 min-w-0 ml-3">
-                  <div className="flex justify-between items-baseline mb-0.5">
-                    <h3 className="font-semibold text-[#111B21] truncate group-hover:text-[#00A884] transition-colors">
+                <div className="flex-1 min-w-0 ml-4">
+                  <div className="flex justify-between items-baseline mb-1">
+                    <h3 className="font-bold text-[#111B21] truncate group-hover:text-[#00A884] transition-colors text-base">
                       {user.displayName}
                     </h3>
                     <span className={cn(
-                      "text-[10px] font-medium transition-colors",
-                      user.isOnline ? "text-[#00A884]" : "text-[#667781]"
+                      "text-[11px] font-bold transition-colors uppercase tracking-tighter",
+                      user.isOnline ? "text-[#00A884]" : "text-[#8696A0]"
                     )}>
                       {user.isOnline ? 'Online' : 'Offline'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <p className="text-sm text-[#667781] truncate flex-1">
+                    <p className="text-sm text-[#667781] truncate flex-1 font-medium">
                       {user.isVerified && <span className="text-[#00A884] mr-1">✓</span>}
-                      {user.email}
+                      {user.bio || user.email}
                     </p>
                     {user.isOnline && (
                       <motion.div 
-                        animate={{ scale: [1, 1.2, 1] }}
-                        transition={{ repeat: Infinity, duration: 2 }}
-                        className="w-2 h-2 bg-[#00A884] rounded-full ml-2"
+                        animate={{ scale: [1, 1.3, 1], opacity: [0.5, 1, 0.5] }}
+                        transition={{ repeat: Infinity, duration: 2.5 }}
+                        className="w-2.5 h-2.5 bg-[#00A884] rounded-full ml-2 shadow-[0_0_8px_rgba(0,168,132,0.4)]"
                       />
                     )}
                   </div>

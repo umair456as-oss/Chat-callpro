@@ -68,7 +68,7 @@ export default function Status({ profile }: StatusProps) {
   };
 
   return (
-    <div className="flex-1 bg-[#F0F2F5] flex flex-col md:flex-row overflow-hidden">
+    <div className="flex-1 bg-[#F0F2F5] flex flex-col md:flex-row overflow-hidden custom-scrollbar">
       {/* Status List Sidebar */}
       <div className="w-full md:w-[400px] bg-white border-r border-[#D1D7DB] flex flex-col overflow-hidden">
         <div className="p-4 bg-[#F0F2F5] flex items-center justify-between">
@@ -81,7 +81,7 @@ export default function Status({ profile }: StatusProps) {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto custom-scrollbar">
           {/* My Status */}
           <div className="p-4 flex items-center gap-4 hover:bg-gray-50 cursor-pointer border-b border-gray-100">
             <div className="relative">
@@ -112,14 +112,18 @@ export default function Status({ profile }: StatusProps) {
                 className="p-4 flex items-center gap-4 hover:bg-gray-50 cursor-pointer transition-colors"
               >
                 <div className={cn(
-                  "w-14 h-14 rounded-full p-0.5 border-2",
-                  s.views.includes(profile.uid) ? "border-gray-300" : "border-[#00A884]"
+                  "w-14 h-14 rounded-full p-0.5 border-2 transition-all duration-300",
+                  s.views.includes(profile.uid) 
+                    ? "border-gray-300" 
+                    : "border-transparent bg-gradient-to-tr from-[#00A884] to-[#25D366] p-[2px]"
                 )}>
-                  <img 
-                    src={s.photoURL || `https://ui-avatars.com/api/?name=${s.displayName}`} 
-                    className="w-full h-full rounded-full object-cover" 
-                    referrerPolicy="no-referrer"
-                  />
+                  <div className="w-full h-full rounded-full bg-white p-0.5">
+                    <img 
+                      src={s.photoURL || `https://ui-avatars.com/api/?name=${s.displayName}`} 
+                      className="w-full h-full rounded-full object-cover" 
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
                 </div>
                 <div className="flex-1">
                   <h3 className="font-bold text-[#111B21]">{s.displayName}</h3>

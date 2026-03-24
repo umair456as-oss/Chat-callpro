@@ -9,12 +9,17 @@ import { cn } from '../utils';
 interface HeaderProps {
   profile: UserProfile;
   onTabChange: (tab: 'chats' | 'status' | 'wallet' | 'games' | 'admin') => void;
+  onSearch: (query: string) => void;
 }
 
-export default function Header({ profile, onTabChange }: HeaderProps) {
+export default function Header({ profile, onTabChange, onSearch }: HeaderProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    onSearch(searchQuery);
+  }, [searchQuery, onSearch]);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
