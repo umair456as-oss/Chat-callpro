@@ -3,7 +3,18 @@ import { collection, query, where, onSnapshot, getDocs, or, orderBy } from 'fire
 import { db, auth } from '../firebase';
 import { handleFirestoreError, OperationType } from '../firebaseError';
 import { UserProfile } from '../types';
-import { Search, UserPlus } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Search, UserPlus, Circle } from 'lucide-react';
+
+const ChatSkeleton = () => (
+  <div className="flex items-center p-3 border-b border-[#F0F2F5] animate-pulse">
+    <div className="w-12 h-12 rounded-full bg-gray-200 mr-3" />
+    <div className="flex-1 space-y-2">
+      <div className="h-4 bg-gray-200 rounded w-1/3" />
+      <div className="h-3 bg-gray-100 rounded w-1/2" />
+    </div>
+  </div>
+);
 import { cn } from '../utils';
 
 interface ChatListProps {
@@ -15,6 +26,7 @@ export default function ChatList({ onSelectChat, selectedChat }: ChatListProps) 
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<UserProfile[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     if (!auth.currentUser) return;
@@ -30,6 +42,7 @@ export default function ChatList({ onSelectChat, selectedChat }: ChatListProps) 
     );
 
     const unsubscribe = onSnapshot(q, async (snapshot) => {
+      setIsLoading(true);
       const activeUserIds = new Set<string>();
       snapshot.docs.forEach(doc => {
         const data = doc.data();
@@ -48,7 +61,11 @@ export default function ChatList({ onSelectChat, selectedChat }: ChatListProps) 
       const activeUsers = userSnaps.flatMap(snap => snap.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile)));
       
       setUsers(activeUsers);
-    }, (error) => handleFirestoreError(error, OperationType.LIST, 'messages'));
+      setIsLoading(false);
+    }, (error) => {
+      setIsLoading(false);
+      handleFirestoreError(error, OperationType.LIST, 'messages');
+    });
 
     return () => unsubscribe();
   }, [auth.currentUser]);
@@ -108,47 +125,85 @@ export default function ChatList({ onSelectChat, selectedChat }: ChatListProps) 
         </form>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        {displayedUsers.length === 0 ? (
-          <div className="p-10 text-center text-[#667781] text-sm">
-            {searchTerm ? "No users found." : "No active chats yet. Search for someone to start chatting!"}
-          </div>
-        ) : (
-          displayedUsers.map((user) => (
-            <div
-              key={user.uid}
-              onClick={() => onSelectChat(user)}
-              className={cn(
-                "flex items-center p-3 cursor-pointer hover:bg-[#F5F6F6] border-b border-[#F0F2F5] transition-colors",
-                selectedChat?.uid === user.uid && "bg-[#F0F2F5]"
-              )}
+      <div className="flex-1 overflow-y-auto custom-scrollbar">
+        <AnimatePresence mode="popLayout">
+          {isLoading ? (
+            Array.from({ length: 8 }).map((_, i) => <ChatSkeleton key={i} />)
+          ) : displayedUsers.length === 0 ? (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="p-10 text-center text-[#667781] text-sm"
             >
-              <div className="relative">
-                <img
-                  src={user.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}`}
-                  alt={user.displayName || ''}
-                  className="w-12 h-12 rounded-full mr-3"
-                  referrerPolicy="no-referrer"
-                />
-                {user.isOnline && (
-                  <div className="absolute bottom-0 right-3 w-3 h-3 bg-[#25D366] rounded-full border-2 border-white"></div>
+              {searchTerm ? "No users found." : "No active chats yet. Search for someone to start chatting!"}
+            </motion.div>
+          ) : (
+            displayedUsers.map((user) => (
+              <motion.div
+                layout
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                key={user.uid}
+                onClick={() => onSelectChat(user)}
+                className={cn(
+                  "flex items-center p-3 cursor-pointer hover:bg-teal-50/10 border-b border-[#F0F2F5] transition-all duration-200 group relative",
+                  selectedChat?.uid === user.uid && "bg-teal-50/20"
                 )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex justify-between items-baseline">
-                  <h3 className="font-medium text-[#111B21] truncate">{user.displayName}</h3>
-                  <span className="text-[10px] text-[#667781]">
-                    {user.isOnline ? 'Online' : 'Offline'}
-                  </span>
+              >
+                {selectedChat?.uid === user.uid && (
+                  <motion.div 
+                    layoutId="active-indicator"
+                    className="absolute left-0 w-1 h-8 bg-[#00A884] rounded-r-full" 
+                  />
+                )}
+                
+                <div className="relative">
+                  <div className={cn(
+                    "p-[2px] rounded-full transition-all duration-500",
+                    user.isOnline ? "bg-gradient-to-tr from-[#25D366] to-[#00A884]" : "bg-transparent"
+                  )}>
+                    <img
+                      src={user.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}`}
+                      alt={user.displayName || ''}
+                      className="w-12 h-12 rounded-full object-cover border-2 border-white"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                  {user.isOnline && (
+                    <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-[#25D366] rounded-full border-2 border-white shadow-sm"></div>
+                  )}
                 </div>
-                <p className="text-sm text-[#667781] truncate">
-                  {user.isVerified && <span className="text-[#00A884] mr-1">✓</span>}
-                  {user.email}
-                </p>
-              </div>
-            </div>
-          ))
-        )}
+                <div className="flex-1 min-w-0 ml-3">
+                  <div className="flex justify-between items-baseline mb-0.5">
+                    <h3 className="font-semibold text-[#111B21] truncate group-hover:text-[#00A884] transition-colors">
+                      {user.displayName}
+                    </h3>
+                    <span className={cn(
+                      "text-[10px] font-medium transition-colors",
+                      user.isOnline ? "text-[#00A884]" : "text-[#667781]"
+                    )}>
+                      {user.isOnline ? 'Online' : 'Offline'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-[#667781] truncate flex-1">
+                      {user.isVerified && <span className="text-[#00A884] mr-1">✓</span>}
+                      {user.email}
+                    </p>
+                    {user.isOnline && (
+                      <motion.div 
+                        animate={{ scale: [1, 1.2, 1] }}
+                        transition={{ repeat: Infinity, duration: 2 }}
+                        className="w-2 h-2 bg-[#00A884] rounded-full ml-2"
+                      />
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            ))
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

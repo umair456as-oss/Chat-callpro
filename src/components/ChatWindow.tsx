@@ -3,11 +3,134 @@ import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp,
 import { db } from '../firebase';
 import { UserProfile, Message } from '../types';
 import { handleFirestoreError, OperationType } from '../firebaseError';
-import { Send, Plus, Search, MoreVertical, Smile, Mic, Gamepad2, ArrowLeft, Image, BadgeCheck, XCircle, Phone, Play, Pause, Trash2, Share2 } from 'lucide-react';
+import { Send, Plus, Search, MoreVertical, Smile, Mic, Gamepad2, ArrowLeft, Image, BadgeCheck, XCircle, Phone, Play, Pause, Trash2, Share2, Check } from 'lucide-react';
 import { formatMessageTime, cn, formatChatDate, toSafeDate } from '../utils';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { updateDoc, doc } from 'firebase/firestore';
 import VoiceCall from './VoiceCall';
+
+const MessageBubble = React.memo(({ 
+  msg, 
+  currentUser, 
+  chat, 
+  messageMap, 
+  onDelete, 
+  onForward, 
+  onReply 
+}: { 
+  msg: Message; 
+  currentUser: UserProfile; 
+  chat: UserProfile;
+  messageMap: Record<string, Message>;
+  onDelete: (msg: Message) => void;
+  onForward: (msg: Message) => void;
+  onReply: (msg: Message) => void;
+}) => {
+  const isOutgoing = msg.senderId === currentUser.uid;
+  
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      drag="x"
+      dragConstraints={{ left: 0, right: 100 }}
+      dragElastic={0.1}
+      onDragEnd={(_, info) => {
+        if (info.offset.x > 50) onReply(msg);
+      }}
+      className={cn(
+        "flex w-full mb-2",
+        isOutgoing ? "justify-end" : "justify-start"
+      )}
+    >
+      <div
+        className={cn(
+          "max-w-[75%] px-4 py-2 rounded-2xl relative group transition-all duration-300",
+          msg.isDeletedForEveryone ? "bg-gray-100 italic text-gray-400 shadow-sm" : (
+            isOutgoing 
+              ? "bg-[#D9FDD3] rounded-tr-none shadow-md hover:shadow-lg ring-1 ring-[#D9FDD3] hover:ring-[#c5fbc0] shadow-[#D9FDD3]/20" 
+              : "bg-white rounded-tl-none shadow-sm hover:shadow-md ring-1 ring-white"
+          )
+        )}
+      >
+        {/* Actions */}
+        {!msg.isDeletedForEveryone && (
+          <div className={cn(
+            "absolute top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-20",
+            isOutgoing ? "-left-20" : "-right-20"
+          )}>
+            <button 
+              onClick={() => onDelete(msg)}
+              className="p-1.5 bg-white/80 backdrop-blur-sm shadow-sm rounded-full text-gray-400 hover:text-red-500 transition-colors"
+              title="Delete"
+            >
+              <Trash2 size={14} />
+            </button>
+            <button 
+              onClick={() => onForward(msg)}
+              className="p-1.5 bg-white/80 backdrop-blur-sm shadow-sm rounded-full text-gray-400 hover:text-[#00A884] transition-colors"
+              title="Forward"
+            >
+              <Share2 size={14} />
+            </button>
+          </div>
+        )}
+
+        {/* Reply Preview */}
+        {msg.replyTo && (
+          <div className="bg-black/5 border-l-4 border-[#00A884] p-2 rounded-lg mb-2 text-[11px] text-[#667781] flex flex-col">
+            <span className="font-bold text-[#00A884] mb-0.5">
+              {messageMap[msg.replyTo]?.senderId === currentUser.uid ? 'You' : chat.displayName}
+            </span>
+            <span className="truncate">
+              {messageMap[msg.replyTo]?.text || 'Voice Message'}
+            </span>
+          </div>
+        )}
+
+        {/* Forwarded Tag */}
+        {msg.isForwarded && (
+          <div className="flex items-center gap-1 text-[10px] text-[#667781] italic mb-1">
+            <Share2 size={10} className="rotate-180" />
+            Forwarded
+          </div>
+        )}
+
+        {/* Content */}
+        {msg.type === 'voice' ? (
+          <VoiceMessage audioUrl={msg.audioUrl || ''} />
+        ) : (
+          <p className="text-[#111B21] text-[15px] leading-relaxed break-words pr-14">{msg.text}</p>
+        )}
+
+        {/* Meta (Time & Ticks) */}
+        <div className="absolute bottom-1.5 right-2.5 flex items-center gap-1.5">
+          <span className="text-[10px] font-medium text-[#667781]/80">
+            {msg.timestamp ? formatMessageTime(toSafeDate(msg.timestamp)) : '...'}
+          </span>
+          {isOutgoing && (
+            <motion.div 
+              initial={false}
+              animate={{ color: msg.status === 'read' ? '#53bdeb' : '#8696a0' }}
+              className="flex items-center"
+            >
+              {msg.status === 'read' ? (
+                <div className="flex -space-x-1.5">
+                  <Check size={13} strokeWidth={3} />
+                  <Check size={13} strokeWidth={3} />
+                </div>
+              ) : (
+                <Check size={13} strokeWidth={3} />
+              )}
+            </motion.div>
+          )}
+        </div>
+      </div>
+    </motion.div>
+  );
+});
+
+MessageBubble.displayName = 'MessageBubble';
 
 const VoiceMessage = ({ audioUrl }: { audioUrl: string }) => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -627,98 +750,19 @@ export default function ChatWindow({ chat, currentUser, onBack }: ChatWindowProp
       {/* Messages Area */}
       <div 
         ref={scrollRef}
-        className="flex-1 overflow-y-auto p-4 space-y-2 z-10"
+        className="flex-1 overflow-y-auto p-4 space-y-1 z-10 custom-scrollbar"
       >
         {messages.filter(m => !m.deletedFor?.includes(currentUser.uid)).map((msg) => (
-          <motion.div
+          <MessageBubble
             key={msg.id}
-            drag="x"
-            dragConstraints={{ left: 0, right: 100 }}
-            dragElastic={0.1}
-            onDragEnd={(_, info) => {
-              if (info.offset.x > 50) setReplyingTo(msg);
-            }}
-            className={cn(
-              "flex w-full",
-              msg.senderId === currentUser.uid ? "justify-end" : "justify-start"
-            )}
-          >
-            <div
-              className={cn(
-                "max-w-[70%] px-3 py-1.5 rounded-lg shadow-sm relative group",
-                msg.isDeletedForEveryone ? "bg-gray-100 italic text-gray-400" : (
-                  msg.senderId === currentUser.uid 
-                    ? "bg-[#D9FDD3] rounded-tr-none" 
-                    : "bg-white rounded-tl-none"
-                )
-              )}
-            >
-              {!msg.isDeletedForEveryone && msg.senderId === currentUser.uid && (
-                <div className="absolute -left-16 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button 
-                    onClick={() => setMessageToDelete(msg)}
-                    className="p-1 text-gray-400 hover:text-red-500"
-                    title="Delete"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                  <button 
-                    onClick={() => setMessageToForward(msg)}
-                    className="p-1 text-gray-400 hover:text-[#00A884]"
-                    title="Forward"
-                  >
-                    <Share2 size={16} />
-                  </button>
-                </div>
-              )}
-              {!msg.isDeletedForEveryone && msg.senderId !== currentUser.uid && (
-                <div className="absolute -right-16 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button 
-                    onClick={() => setMessageToForward(msg)}
-                    className="p-1 text-gray-400 hover:text-[#00A884]"
-                    title="Forward"
-                  >
-                    <Share2 size={16} />
-                  </button>
-                  <button 
-                    onClick={() => setMessageToDelete(msg)}
-                    className="p-1 text-gray-400 hover:text-red-500"
-                    title="Delete"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              )}
-              {msg.replyTo && (
-                <div className="bg-black/5 border-l-4 border-[#00A884] p-2 rounded mb-1 text-[10px] text-[#667781]">
-                  {messageMap[msg.replyTo]?.text.slice(0, 50)}...
-                </div>
-              )}
-              {msg.isForwarded && (
-                <div className="flex items-center gap-1 text-[10px] text-[#667781] italic mb-1">
-                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M11 11V5l7 7-7 7v-6H5v-2h6z"/>
-                  </svg>
-                  Forwarded
-                </div>
-              )}
-              {msg.type === 'voice' ? (
-                <VoiceMessage audioUrl={msg.audioUrl || ''} />
-              ) : (
-                <p className="text-[#111B21] text-sm break-words pr-12">{msg.text}</p>
-              )}
-              <div className="absolute bottom-1 right-2 flex items-center gap-1">
-                <span className="text-[10px] text-[#667781]">
-                  {msg.timestamp ? formatMessageTime(toSafeDate(msg.timestamp)) : '...'}
-                </span>
-                {msg.senderId === currentUser.uid && (
-                  <span className="text-[10px] text-[#53bdeb]">
-                    {msg.status === 'read' ? '✓✓' : '✓'}
-                  </span>
-                )}
-              </div>
-            </div>
-          </motion.div>
+            msg={msg}
+            currentUser={currentUser}
+            chat={chat}
+            messageMap={messageMap}
+            onDelete={setMessageToDelete}
+            onForward={setMessageToForward}
+            onReply={setReplyingTo}
+          />
         ))}
       </div>
 

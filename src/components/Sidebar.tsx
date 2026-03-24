@@ -1,3 +1,4 @@
+import { motion } from 'motion/react';
 import { MessageCircle, Wallet, Gamepad2, ShieldCheck, LogOut, CircleDashed } from 'lucide-react';
 import { auth } from '../firebase';
 import { UserProfile } from '../types';
@@ -17,7 +18,9 @@ export default function Sidebar({ activeTab, setActiveTab, profile }: SidebarPro
           <img src={profile.photoURL || `https://ui-avatars.com/api/?name=${profile.displayName}`} alt="Profile" referrerPolicy="no-referrer" />
         </div>
 
-        <button
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
           onClick={() => setActiveTab('chats')}
           className={cn(
             "p-2 rounded-full transition-colors flex flex-col items-center gap-1 md:gap-0",
@@ -27,9 +30,11 @@ export default function Sidebar({ activeTab, setActiveTab, profile }: SidebarPro
         >
           <MessageCircle size={24} />
           <span className="text-[10px] md:hidden">Chats</span>
-        </button>
+        </motion.button>
 
-        <button
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
           onClick={() => setActiveTab('status')}
           className={cn(
             "p-2 rounded-full transition-colors flex flex-col items-center gap-1 md:gap-0",
@@ -39,9 +44,11 @@ export default function Sidebar({ activeTab, setActiveTab, profile }: SidebarPro
         >
           <CircleDashed size={24} />
           <span className="text-[10px] md:hidden">Status</span>
-        </button>
+        </motion.button>
 
-        <button
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
           onClick={() => setActiveTab('wallet')}
           className={cn(
             "p-2 rounded-full transition-colors flex flex-col items-center gap-1 md:gap-0",
@@ -51,9 +58,11 @@ export default function Sidebar({ activeTab, setActiveTab, profile }: SidebarPro
         >
           <Wallet size={24} />
           <span className="text-[10px] md:hidden">Wallet</span>
-        </button>
+        </motion.button>
 
-        <button
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
           onClick={() => setActiveTab('games')}
           className={cn(
             "p-2 rounded-full transition-colors flex flex-col items-center gap-1 md:gap-0",
@@ -63,10 +72,12 @@ export default function Sidebar({ activeTab, setActiveTab, profile }: SidebarPro
         >
           <Gamepad2 size={24} />
           <span className="text-[10px] md:hidden">Games</span>
-        </button>
+        </motion.button>
 
         {(profile.role === 'admin' || profile.email === 'abdulrehmanhabib.com@gmail.com') && (
-          <button
+          <motion.button
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
             onClick={() => setActiveTab('admin')}
             className={cn(
               "p-2 rounded-full transition-colors flex flex-col items-center gap-1 md:gap-0",
@@ -76,18 +87,20 @@ export default function Sidebar({ activeTab, setActiveTab, profile }: SidebarPro
           >
             <ShieldCheck size={24} />
             <span className="text-[10px] md:hidden">Admin</span>
-          </button>
+          </motion.button>
         )}
       </div>
 
-      <button
+      <motion.button
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
         onClick={() => auth.signOut()}
         className="p-2 rounded-full text-[#54656F] hover:bg-red-100 hover:text-red-600 transition-colors flex flex-col items-center gap-1 md:gap-0"
         title="Logout"
       >
         <LogOut size={24} />
         <span className="text-[10px] md:hidden">Logout</span>
-      </button>
+      </motion.button>
     </div>
   );
 }

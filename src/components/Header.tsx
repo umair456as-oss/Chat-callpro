@@ -3,7 +3,7 @@ import { Search, MoreVertical, User, Wallet, Shield, Settings, LogOut, X, Camera
 import { auth, db } from '../firebase';
 import { doc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { UserProfile } from '../types';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../utils';
 
 interface HeaderProps {
@@ -13,6 +13,8 @@ interface HeaderProps {
 
 export default function Header({ profile, onTabChange }: HeaderProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
@@ -63,21 +65,62 @@ export default function Header({ profile, onTabChange }: HeaderProps) {
 
   return (
     <>
-      <header className="bg-[#075E54] text-white px-4 py-3 flex items-center justify-between shadow-md relative z-[100]">
+      <motion.header 
+        initial={{ y: -100 }}
+        animate={{ y: 0 }}
+        transition={{ type: 'spring', damping: 20, stiffness: 100 }}
+        className="bg-[#075E54]/85 backdrop-blur-[10px] text-white px-4 py-3 flex items-center justify-between shadow-lg sticky top-0 z-[100] border-b border-white/10"
+      >
         <div className="flex items-center gap-3">
-          <h1 className="text-xl font-bold tracking-tight">Alpha Chat</h1>
+          <AnimatePresence mode="wait">
+            {!isSearchExpanded ? (
+              <motion.h1 
+                key="title"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="text-xl font-bold tracking-tight"
+              >
+                Alpha Chat
+              </motion.h1>
+            ) : null}
+          </AnimatePresence>
         </div>
 
-        <div className="flex items-center gap-5">
-          <button className="p-1 hover:bg-white/10 rounded-full transition-colors">
-            <Search size={22} />
-          </button>
+        <div className="flex items-center gap-2 flex-1 justify-end">
+          <motion.div 
+            initial={false}
+            animate={{ width: isSearchExpanded ? '100%' : '40px' }}
+            className="relative flex items-center justify-end max-w-md"
+          >
+            <AnimatePresence>
+              {isSearchExpanded && (
+                <motion.input
+                  autoFocus
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  type="text"
+                  placeholder="Search chats, messages..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-white/10 border border-white/20 rounded-full py-1.5 pl-4 pr-10 text-sm focus:outline-none focus:bg-white/20 transition-all placeholder:text-white/50"
+                />
+              )}
+            </AnimatePresence>
+            <button 
+              onClick={() => setIsSearchExpanded(!isSearchExpanded)}
+              className="p-2 hover:bg-white/10 rounded-full transition-colors absolute right-0"
+            >
+              {isSearchExpanded ? <X size={20} /> : <Search size={22} />}
+            </button>
+          </motion.div>
           
-          <div className="relative">
+          <div className="relative ml-2">
             <button 
               onClick={() => setIsMenuOpen(!isMenuOpen)}
               className={cn(
-                "p-1 rounded-full transition-colors",
+                "p-2 rounded-full transition-colors",
                 isMenuOpen ? "bg-white/20" : "hover:bg-white/10"
               )}
             >
@@ -92,46 +135,61 @@ export default function Header({ profile, onTabChange }: HeaderProps) {
                     onClick={() => setIsMenuOpen(false)}
                   />
                   <motion.div
-                    initial={{ opacity: 0, scale: 0.95, y: -10 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                    className="absolute right-0 mt-2 w-52 bg-white rounded-lg shadow-xl py-2 z-50 text-gray-800 border border-gray-100"
+                    initial={{ opacity: 0, scale: 0.95, y: -10, x: 10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0, x: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: -10, x: 10 }}
+                    className="absolute right-0 mt-3 w-56 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl py-2 z-50 text-gray-800 border border-gray-100 overflow-hidden"
                   >
                     <button 
                       onClick={() => { setIsProfileModalOpen(true); setIsMenuOpen(false); }}
-                      className="w-full px-4 py-2.5 text-left flex items-center gap-3 hover:bg-gray-50 transition-colors"
+                      className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-teal-50 transition-colors group"
                     >
-                      <User size={18} className="text-gray-500" />
-                      <span>Profile</span>
+                      <div className="p-1.5 bg-teal-50 text-teal-600 rounded-lg group-hover:bg-teal-100 transition-colors">
+                        <User size={18} />
+                      </div>
+                      <span className="font-medium">Profile</span>
                     </button>
                     <button 
                       onClick={() => { onTabChange('wallet'); setIsMenuOpen(false); }}
-                      className="w-full px-4 py-2.5 text-left flex items-center gap-3 hover:bg-gray-50 transition-colors"
+                      className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-teal-50 transition-colors group"
                     >
-                      <Wallet size={18} className="text-gray-500" />
-                      <span>Wallet</span>
+                      <div className="p-1.5 bg-teal-50 text-teal-600 rounded-lg group-hover:bg-teal-100 transition-colors">
+                        <Wallet size={18} />
+                      </div>
+                      <span className="font-medium">Wallet</span>
                     </button>
                     <button 
                       onClick={() => { setIsSecurityModalOpen(true); setIsMenuOpen(false); }}
-                      className="w-full px-4 py-2.5 text-left flex items-center gap-3 hover:bg-gray-50 transition-colors"
+                      className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-teal-50 transition-colors group"
                     >
-                      <Shield size={18} className="text-gray-500" />
-                      <span>Security</span>
+                      <div className="p-1.5 bg-teal-50 text-teal-600 rounded-lg group-hover:bg-teal-100 transition-colors">
+                        <Shield size={18} />
+                      </div>
+                      <span className="font-medium">Security</span>
                     </button>
                     <button 
                       onClick={() => { setIsSettingsModalOpen(true); setIsMenuOpen(false); }}
-                      className="w-full px-4 py-2.5 text-left flex items-center gap-3 hover:bg-gray-50 transition-colors"
+                      className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-teal-50 transition-colors group"
                     >
-                      <Settings size={18} className="text-gray-500" />
-                      <span>Settings</span>
+                      <div className="p-1.5 bg-teal-50 text-teal-600 rounded-lg group-hover:bg-teal-100 transition-colors">
+                        <Settings size={18} />
+                      </div>
+                      <span className="font-medium">Settings</span>
                     </button>
-                    <div className="h-px bg-gray-100 my-1" />
+                    <div className="h-px bg-gray-100 mx-4 my-1" />
                     <button 
                       onClick={handleLogout}
-                      className="w-full px-4 py-2.5 text-left flex items-center gap-3 hover:bg-red-50 text-red-600 transition-colors"
+                      className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-red-50 text-red-600 transition-colors group relative overflow-hidden"
                     >
-                      <LogOut size={18} />
-                      <span className="font-medium">Logout</span>
+                      <div className="p-1.5 bg-red-50 text-red-600 rounded-lg group-hover:bg-red-100 transition-colors">
+                        <LogOut size={18} />
+                      </div>
+                      <span className="font-bold">Logout</span>
+                      <motion.div 
+                        animate={{ scale: [1, 1.2, 1] }}
+                        transition={{ repeat: Infinity, duration: 2 }}
+                        className="absolute right-4 w-2 h-2 bg-red-500 rounded-full opacity-50"
+                      />
                     </button>
                   </motion.div>
                 </>
@@ -139,7 +197,7 @@ export default function Header({ profile, onTabChange }: HeaderProps) {
             </AnimatePresence>
           </div>
         </div>
-      </header>
+      </motion.header>
 
       {/* Profile Modal */}
       <AnimatePresence>
