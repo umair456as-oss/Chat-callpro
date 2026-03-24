@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { doc, onSnapshot, updateDoc, collection, addDoc, serverTimestamp, deleteDoc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { handleFirestoreError, OperationType } from '../firebaseError';
 import { UserProfile, Call } from '../types';
 import { Phone, PhoneOff, Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -131,6 +132,8 @@ export default function VoiceCall({ currentUser, otherUser, callId, isIncoming, 
                 pc.addIceCandidate(new RTCIceCandidate(data));
               }
             });
+          }, (error) => {
+            handleFirestoreError(error, OperationType.GET, `calls/${callId}/offerCandidates`);
           });
         } else {
           // Handle outgoing call
@@ -181,6 +184,8 @@ export default function VoiceCall({ currentUser, otherUser, callId, isIncoming, 
             if (data?.status === 'ended' || data?.status === 'rejected') {
               handleEndCall();
             }
+          }, (error) => {
+            handleFirestoreError(error, OperationType.GET, `calls/${callDoc.id}`);
           });
 
           onSnapshot(answerCandidates, (snapshot) => {
@@ -191,6 +196,8 @@ export default function VoiceCall({ currentUser, otherUser, callId, isIncoming, 
                 pc.addIceCandidate(candidate);
               }
             });
+          }, (error) => {
+            handleFirestoreError(error, OperationType.GET, `calls/${callDoc.id}/answerCandidates`);
           });
         }
       } catch (err: any) {

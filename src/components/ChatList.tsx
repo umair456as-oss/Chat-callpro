@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot, getDocs, or } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, getDocs, or, orderBy } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { handleFirestoreError, OperationType } from '../firebaseError';
 import { UserProfile } from '../types';
@@ -17,22 +17,38 @@ export default function ChatList({ onSelectChat, selectedChat }: ChatListProps) 
   const [searchResults, setSearchResults] = useState<UserProfile[]>([]);
 
   useEffect(() => {
-    // In a real app, we'd only fetch users we have chats with.
-    // For this demo, we'll fetch all users except the current one.
     if (!auth.currentUser) return;
 
-    const q = query(collection(db, 'users'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const usersList = snapshot.docs
-        .map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile))
-        .filter(u => u.uid !== auth.currentUser?.uid);
+    // Fetch active conversations
+    const q = query(
+      collection(db, 'messages'),
+      or(
+        where('senderId', '==', auth.currentUser.uid),
+        where('receiverId', '==', auth.currentUser.uid)
+      ),
+      orderBy('timestamp', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
+      const activeUserIds = new Set<string>();
+      snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        if (data.senderId !== auth.currentUser?.uid) activeUserIds.add(data.senderId);
+        if (data.receiverId !== auth.currentUser?.uid) activeUserIds.add(data.receiverId);
+      });
+
+      if (activeUserIds.size === 0) {
+        setUsers([]);
+        return;
+      }
+
+      // Fetch user profiles for active conversations
+      const userQueries = Array.from(activeUserIds).map(uid => getDocs(query(collection(db, 'users'), where('__name__', '==', uid))));
+      const userSnaps = await Promise.all(userQueries);
+      const activeUsers = userSnaps.flatMap(snap => snap.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile)));
       
-      // Deduplicate by uid just in case
-      const uniqueUsers = Array.from(new Map(usersList.map(u => [u.uid, u])).values());
-      setUsers(uniqueUsers);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'users');
-    });
+      setUsers(activeUsers);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'messages'));
 
     return () => unsubscribe();
   }, [auth.currentUser]);
@@ -44,16 +60,19 @@ export default function ChatList({ onSelectChat, selectedChat }: ChatListProps) 
       return;
     }
 
-    // Search by email or phone number
+    // Search by exact email only for privacy
     const q = query(
       collection(db, 'users'),
-      or(
-        where('email', '==', searchTerm.trim()),
-        where('phoneNumber', '==', searchTerm.trim())
-      )
+      where('email', '==', searchTerm.trim())
     );
     
-    const snapshot = await getDocs(q);
+    let snapshot;
+    try {
+      snapshot = await getDocs(q);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.GET, 'users');
+      return;
+    }
     const results = snapshot.docs
       .map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile))
       .filter(u => u.uid !== auth.currentUser?.uid);

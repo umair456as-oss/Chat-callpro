@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { doc, runTransaction, serverTimestamp, collection, addDoc, query, where, getDocs, limit, orderBy } from 'firebase/firestore';
+import { doc, runTransaction, serverTimestamp, collection, addDoc, query, where, getDocs, limit, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { UserProfile, GameLog, AppSettings, GameSettings } from '../types';
 import { handleFirestoreError, OperationType } from '../firebaseError';
@@ -11,9 +11,8 @@ import {
   Trophy, Star, Zap, Clock
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { cn } from '../utils';
-import GameAdWrapper from './GameAdWrapper';
-import GameAdController from './GameAdController';
+import { cn, toSafeDate } from '../utils';
+import AdResetter from './AdResetter';
 
 interface GamesProps {
   profile: UserProfile;
@@ -26,6 +25,7 @@ type GameType =
 
 export default function Games({ profile }: GamesProps) {
   const [activeGame, setActiveGame] = useState<GameType | null>(null);
+  const [gameSessionId, setGameSessionId] = useState(0);
   const [loading, setLoading] = useState(false);
   const [gameResult, setGameResult] = useState<{ success: boolean; reward: number; message: string } | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
@@ -34,6 +34,8 @@ export default function Games({ profile }: GamesProps) {
   useEffect(() => {
     const unsubS = onSnapshot(doc(db, 'settings', 'global'), (doc) => {
       if (doc.exists()) setAppSettings(doc.data() as AppSettings);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'settings/global');
     });
 
     const unsubG = onSnapshot(collection(db, 'gameSettings'), (snapshot) => {
@@ -42,6 +44,8 @@ export default function Games({ profile }: GamesProps) {
         settings[doc.id] = { id: doc.id, ...doc.data() } as GameSettings;
       });
       setGameSettings(settings);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'gameSettings');
     });
 
     return () => {
@@ -65,7 +69,9 @@ export default function Games({ profile }: GamesProps) {
     }
 
     // Calculate Final Reward based on Level and Jackpot Hour
-    let finalReward = reward;
+    // Use earningRate from settings if available, otherwise use the passed reward
+    let baseReward = currentSetting?.earningRate || reward;
+    let finalReward = baseReward;
     
     // Level Multiplier
     const levelMultipliers: Record<string, number> = {
@@ -87,6 +93,26 @@ export default function Games({ profile }: GamesProps) {
         const userRef = doc(db, 'users', profile.uid);
         const userSnap = await transaction.get(userRef);
         if (!userSnap.exists()) throw "User does not exist!";
+
+        // Check daily limit
+        const today = new Date().toISOString().split('T')[0];
+        const logsQuery = query(
+          collection(db, 'gameLogs'),
+          where('userId', '==', profile.uid),
+          where('gameName', '==', gameName),
+          where('timestamp', '>=', Timestamp.fromDate(new Date(today)))
+        );
+        let logsSnap;
+        try {
+          logsSnap = await getDocs(logsQuery);
+        } catch (error) {
+          handleFirestoreError(error, OperationType.GET, 'gameLogs');
+          throw error;
+        }
+        const dailyLimit = currentSetting?.dailyLimit || 100; // Default 100 if not set
+        if (logsSnap.size >= dailyLimit) {
+          throw new Error(`Daily limit reached for ${gameName}. Max ${dailyLimit} plays.`);
+        }
 
         const currentBalance = userSnap.data().balance || 0;
         const currentExp = userSnap.data().experience || 0;
@@ -137,17 +163,56 @@ export default function Games({ profile }: GamesProps) {
     }
   };
 
+  const handleStartGame = async (gameId: GameType) => {
+    const setting = gameSettings[gameId];
+    if (setting && !setting.isEnabled) {
+      alert('This game is currently disabled.');
+      return;
+    }
+
+    const price = setting?.price || 0;
+    if (price > 0) {
+      if (profile.balance < price) {
+        alert(`Insufficient balance! This game costs Rs. ${price} to play.`);
+        return;
+      }
+
+      setLoading(true);
+      try {
+        await runTransaction(db, async (transaction) => {
+          const userRef = doc(db, 'users', profile.uid);
+          const userSnap = await transaction.get(userRef);
+          if (!userSnap.exists()) throw "User does not exist!";
+          
+          const currentBalance = userSnap.data().balance || 0;
+          if (currentBalance < price) throw "Insufficient balance!";
+          
+          transaction.update(userRef, { balance: currentBalance - price });
+        });
+      } catch (error) {
+        console.error('Error paying entry fee:', error);
+        alert('Failed to start game. Please try again.');
+        setLoading(false);
+        return;
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    setActiveGame(gameId);
+  };
+
   const games = [
-    { id: 'lucky-spin', name: 'Lucky Spin', icon: RotateCw, color: 'bg-purple-500', reward: 'Up to Rs. 50' },
-    { id: 'math-quiz', name: 'Math Quiz', icon: Calculator, color: 'bg-blue-500', reward: 'Rs. 5 per win' },
-    { id: 'scratch-win', name: 'Scratch & Win', icon: Eraser, color: 'bg-orange-500', reward: 'Up to Rs. 20' },
-    { id: 'daily-checkin', name: 'Daily Check-in', icon: Calendar, color: 'bg-green-500', reward: 'Rs. 10 daily' },
-    { id: 'dice-roller', name: 'Dice Roller', icon: Dices, color: 'bg-red-500', reward: 'Rs. 30 on 6' },
-    { id: 'word-scramble', name: 'Word Scramble', icon: Type, color: 'bg-indigo-500', reward: 'Rs. 15 per word' },
-    { id: 'captcha-solver', name: 'Captcha Solver', icon: ShieldCheck, color: 'bg-cyan-500', reward: 'Rs. 2 per captcha' },
-    { id: 'coin-flip', name: 'Coin Flip', icon: Coins, color: 'bg-yellow-500', reward: 'Double your bet' },
-    { id: 'memory-match', name: 'Memory Match', icon: LayoutGrid, color: 'bg-pink-500', reward: 'Rs. 25 per level' },
-    { id: 'watch-earn', name: 'Watch & Earn', icon: PlayCircle, color: 'bg-rose-500', reward: 'Rs. 5 per video' },
+    { id: 'lucky-spin', name: 'Lucky Spin', icon: RotateCw, color: 'bg-purple-500' },
+    { id: 'math-quiz', name: 'Math Quiz', icon: Calculator, color: 'bg-blue-500' },
+    { id: 'scratch-win', name: 'Scratch & Win', icon: Eraser, color: 'bg-orange-500' },
+    { id: 'daily-checkin', name: 'Daily Check-in', icon: Calendar, color: 'bg-green-500' },
+    { id: 'dice-roller', name: 'Dice Roller', icon: Dices, color: 'bg-red-500' },
+    { id: 'word-scramble', name: 'Word Scramble', icon: Type, color: 'bg-indigo-500' },
+    { id: 'captcha-solver', name: 'Captcha Solver', icon: ShieldCheck, color: 'bg-cyan-500' },
+    { id: 'coin-flip', name: 'Coin Flip', icon: Coins, color: 'bg-yellow-500' },
+    { id: 'memory-match', name: 'Memory Match', icon: LayoutGrid, color: 'bg-pink-500' },
+    { id: 'watch-earn', name: 'Watch & Earn', icon: PlayCircle, color: 'bg-rose-500' },
   ];
 
   return (
@@ -197,24 +262,39 @@ export default function Games({ profile }: GamesProps) {
 
         {!activeGame ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
-            {games.map((game) => (
-              <motion.div
-                key={game.id}
-                whileHover={{ y: -5 }}
-                onClick={() => setActiveGame(game.id as GameType)}
-                className="bg-white rounded-3xl p-6 shadow-sm hover:shadow-xl transition-all cursor-pointer border border-transparent hover:border-[#00A884] group"
-              >
-                <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center text-white mb-6 shadow-lg group-hover:scale-110 transition-transform", game.color)}>
-                  <game.icon size={32} />
-                </div>
-                <h3 className="text-lg font-bold text-[#111B21] mb-1">{game.name}</h3>
-                <p className="text-xs text-[#00A884] font-bold mb-4">{game.reward}</p>
-                <div className="flex items-center gap-2 text-[#667781] text-[10px] uppercase font-bold">
-                  <Zap size={12} className="text-yellow-500" />
-                  Instant Reward
-                </div>
-              </motion.div>
-            ))}
+            {games.map((game) => {
+              const setting = gameSettings[game.id];
+              const price = setting?.price || 0;
+              const reward = setting?.earningRate || 0;
+              return (
+                <motion.div
+                  key={game.id}
+                  whileHover={{ y: -5 }}
+                  onClick={() => handleStartGame(game.id as GameType)}
+                  className={cn(
+                    "bg-white rounded-3xl p-6 shadow-sm hover:shadow-xl transition-all cursor-pointer border border-transparent hover:border-[#00A884] group relative overflow-hidden",
+                    setting && !setting.isEnabled && "opacity-50 grayscale cursor-not-allowed"
+                  )}
+                >
+                  {price > 0 && (
+                    <div className="absolute top-0 right-0 bg-orange-500 text-white text-[8px] font-bold px-3 py-1 rounded-bl-xl shadow-sm">
+                      Rs. {price}
+                    </div>
+                  )}
+                  <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center text-white mb-6 shadow-lg group-hover:scale-110 transition-transform", game.color)}>
+                    <game.icon size={32} />
+                  </div>
+                  <h3 className="text-lg font-bold text-[#111B21] mb-1">{game.name}</h3>
+                  <p className="text-xs text-[#00A884] font-bold mb-4">
+                    {reward > 0 ? `Earn Rs. ${reward}` : 'Play & Earn'}
+                  </p>
+                  <div className="flex items-center gap-2 text-[#667781] text-[10px] uppercase font-bold">
+                    <Zap size={12} className="text-yellow-500" />
+                    {setting?.dailyLimit ? `Limit: ${setting.dailyLimit}/day` : 'Instant Reward'}
+                  </div>
+                </motion.div>
+              );
+            })}
           </div>
         ) : (
           <div className="bg-white rounded-3xl shadow-xl overflow-hidden min-h-[500px] flex flex-col">
@@ -253,7 +333,10 @@ export default function Games({ profile }: GamesProps) {
                     <h2 className="text-3xl font-bold mb-2">{gameResult.success ? 'Winner!' : 'Oops!'}</h2>
                     <p className="text-[#667781] mb-8">{gameResult.message}</p>
                     <button
-                      onClick={() => setGameResult(null)}
+                      onClick={() => {
+                        setGameResult(null);
+                        setGameSessionId(prev => prev + 1);
+                      }}
                       className="bg-[#00A884] text-white font-bold py-3 px-8 rounded-xl shadow-lg hover:bg-[#008F6F] transition-all"
                     >
                       Play Again
@@ -265,13 +348,13 @@ export default function Games({ profile }: GamesProps) {
                     onWin={(reward) => addReward(activeGame, reward)} 
                     loading={loading}
                     profile={profile}
+                    onRestart={() => setGameSessionId(prev => prev + 1)}
                   />
                 )}
               </AnimatePresence>
               
               {/* Rule 3: Load the ad only when a game is active */}
-              <GameAdWrapper />
-              <GameAdController />
+              <AdResetter gameSessionId={gameSessionId} />
             </div>
           </div>
         )}
@@ -280,29 +363,29 @@ export default function Games({ profile }: GamesProps) {
   );
 }
 
-function GameContent({ type, onWin, loading, profile }: { type: GameType, onWin: (reward: number) => void, loading: boolean, profile: UserProfile }) {
+function GameContent({ type, onWin, loading, profile, onRestart }: { type: GameType, onWin: (reward: number) => void, loading: boolean, profile: UserProfile, onRestart: () => void }) {
   // Implementation of specific games
   switch (type) {
     case 'lucky-spin':
-      return <LuckySpin onWin={onWin} loading={loading} />;
+      return <LuckySpin onWin={onWin} loading={loading} onRestart={onRestart} />;
     case 'math-quiz':
-      return <MathQuiz onWin={onWin} loading={loading} />;
+      return <MathQuiz onWin={onWin} loading={loading} onRestart={onRestart} />;
     case 'scratch-win':
-      return <ScratchWin onWin={onWin} loading={loading} />;
+      return <ScratchWin onWin={onWin} loading={loading} onRestart={onRestart} />;
     case 'daily-checkin':
-      return <DailyCheckin onWin={onWin} loading={loading} profile={profile} />;
+      return <DailyCheckin onWin={onWin} loading={loading} profile={profile} onRestart={onRestart} />;
     case 'dice-roller':
-      return <DiceRoller onWin={onWin} loading={loading} />;
+      return <DiceRoller onWin={onWin} loading={loading} onRestart={onRestart} />;
     case 'word-scramble':
-      return <WordScramble onWin={onWin} loading={loading} />;
+      return <WordScramble onWin={onWin} loading={loading} onRestart={onRestart} />;
     case 'captcha-solver':
-      return <CaptchaSolver onWin={onWin} loading={loading} />;
+      return <CaptchaSolver onWin={onWin} loading={loading} onRestart={onRestart} />;
     case 'coin-flip':
-      return <CoinFlip onWin={onWin} loading={loading} />;
+      return <CoinFlip onWin={onWin} loading={loading} onRestart={onRestart} />;
     case 'memory-match':
-      return <MemoryMatch onWin={onWin} loading={loading} />;
+      return <MemoryMatch onWin={onWin} loading={loading} onRestart={onRestart} />;
     case 'watch-earn':
-      return <WatchEarn onWin={onWin} loading={loading} />;
+      return <WatchEarn onWin={onWin} loading={loading} onRestart={onRestart} />;
     default:
       return null;
   }
@@ -310,7 +393,7 @@ function GameContent({ type, onWin, loading, profile }: { type: GameType, onWin:
 
 // --- Game Components ---
 
-function LuckySpin({ onWin, loading }: { onWin: (reward: number) => void, loading: boolean }) {
+function LuckySpin({ onWin, loading, onRestart }: { onWin: (reward: number) => void, loading: boolean, onRestart: () => void }) {
   const [spinning, setSpinning] = useState(false);
   const [rotation, setRotation] = useState(0);
 
@@ -356,7 +439,7 @@ function LuckySpin({ onWin, loading }: { onWin: (reward: number) => void, loadin
   );
 }
 
-function MathQuiz({ onWin, loading }: { onWin: (reward: number) => void, loading: boolean }) {
+function MathQuiz({ onWin, loading, onRestart }: { onWin: (reward: number) => void, loading: boolean, onRestart: () => void }) {
   const [quiz, setQuiz] = useState({ a: 0, b: 0, op: '+', ans: 0 });
   const [userAns, setUserAns] = useState('');
   const [timeLeft, setTimeLeft] = useState(10);
@@ -381,6 +464,7 @@ function MathQuiz({ onWin, loading }: { onWin: (reward: number) => void, loading
       return () => clearTimeout(timer);
     } else {
       generateQuiz();
+      onRestart(); // Refresh ad on timeout/new quiz
     }
   }, [timeLeft]);
 
@@ -390,6 +474,7 @@ function MathQuiz({ onWin, loading }: { onWin: (reward: number) => void, loading
       onWin(5);
     } else {
       generateQuiz();
+      onRestart(); // Refresh ad on wrong answer
     }
   };
 
@@ -424,10 +509,16 @@ function MathQuiz({ onWin, loading }: { onWin: (reward: number) => void, loading
   );
 }
 
-function ScratchWin({ onWin, loading }: { onWin: (reward: number) => void, loading: boolean }) {
+function ScratchWin({ onWin, loading, onRestart }: { onWin: (reward: number) => void, loading: boolean, onRestart: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isScratched, setIsScratched] = useState(false);
-  const [rewardAmount] = useState(Math.floor(Math.random() * 20) + 1);
+  const [rewardAmount, setRewardAmount] = useState(Math.floor(Math.random() * 20) + 1);
+
+  const reset = () => {
+    setIsScratched(false);
+    setRewardAmount(Math.floor(Math.random() * 20) + 1);
+    onRestart();
+  };
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -435,6 +526,7 @@ function ScratchWin({ onWin, loading }: { onWin: (reward: number) => void, loadi
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    ctx.globalCompositeOperation = 'source-over';
     ctx.fillStyle = '#C0C0C0';
     ctx.fillRect(0, 0, 300, 150);
     ctx.fillStyle = '#999';
@@ -445,10 +537,10 @@ function ScratchWin({ onWin, loading }: { onWin: (reward: number) => void, loadi
     let isDrawing = false;
 
     const scratch = (e: any) => {
-      if (!isDrawing) return;
+      if (!isDrawing || isScratched) return;
       const rect = canvas.getBoundingClientRect();
-      const x = (e.clientX || e.touches[0].clientX) - rect.left;
-      const y = (e.clientY || e.touches[0].clientY) - rect.top;
+      const x = (e.clientX || (e.touches && e.touches[0].clientX)) - rect.left;
+      const y = (e.clientY || (e.touches && e.touches[0].clientY)) - rect.top;
 
       ctx.globalCompositeOperation = 'destination-out';
       ctx.beginPath();
@@ -482,6 +574,9 @@ function ScratchWin({ onWin, loading }: { onWin: (reward: number) => void, loadi
       canvas.removeEventListener('mousedown', start);
       canvas.removeEventListener('mousemove', scratch);
       canvas.removeEventListener('mouseup', end);
+      canvas.removeEventListener('touchstart', start);
+      canvas.removeEventListener('touchmove', scratch);
+      canvas.removeEventListener('touchend', end);
     };
   }, [isScratched, onWin, rewardAmount]);
 
@@ -499,7 +594,7 @@ function ScratchWin({ onWin, loading }: { onWin: (reward: number) => void, loadi
   );
 }
 
-function DailyCheckin({ onWin, loading, profile }: { onWin: (reward: number) => void, loading: boolean, profile: UserProfile }) {
+function DailyCheckin({ onWin, loading, profile, onRestart }: { onWin: (reward: number) => void, loading: boolean, profile: UserProfile, onRestart: () => void }) {
   const [canCheckin, setCanCheckin] = useState(false);
 
   useEffect(() => {
@@ -511,11 +606,17 @@ function DailyCheckin({ onWin, loading, profile }: { onWin: (reward: number) => 
         orderBy('timestamp', 'desc'),
         limit(1)
       );
-      const snap = await getDocs(q);
+      let snap;
+      try {
+        snap = await getDocs(q);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.GET, 'gameLogs');
+        return;
+      }
       if (snap.empty) {
         setCanCheckin(true);
       } else {
-        const last = snap.docs[0].data().timestamp.toDate();
+        const last = toSafeDate(snap.docs[0].data().timestamp);
         const now = new Date();
         const diff = now.getTime() - last.getTime();
         if (diff > 24 * 60 * 60 * 1000) setCanCheckin(true);
@@ -542,12 +643,13 @@ function DailyCheckin({ onWin, loading, profile }: { onWin: (reward: number) => 
   );
 }
 
-function DiceRoller({ onWin, loading }: { onWin: (reward: number) => void, loading: boolean }) {
+function DiceRoller({ onWin, loading, onRestart }: { onWin: (reward: number) => void, loading: boolean, onRestart: () => void }) {
   const [rolling, setRolling] = useState(false);
   const [dice, setDice] = useState(1);
 
   const roll = () => {
     if (rolling || loading) return;
+    onRestart(); // Refresh ad on roll
     setRolling(true);
     let count = 0;
     const interval = setInterval(() => {
@@ -599,7 +701,7 @@ function DiceRoller({ onWin, loading }: { onWin: (reward: number) => void, loadi
   );
 }
 
-function WordScramble({ onWin, loading }: { onWin: (reward: number) => void, loading: boolean }) {
+function WordScramble({ onWin, loading, onRestart }: { onWin: (reward: number) => void, loading: boolean, onRestart: () => void }) {
   const words = ['REACT', 'FIREBASE', 'WHATSAPP', 'WALLET', 'EARNING', 'GAMING', 'MOBILE', 'CHAT'];
   const [word, setWord] = useState('');
   const [scrambled, setScrambled] = useState('');
@@ -610,6 +712,7 @@ function WordScramble({ onWin, loading }: { onWin: (reward: number) => void, loa
     setWord(w);
     setScrambled(w.split('').sort(() => Math.random() - 0.5).join(''));
     setInput('');
+    onRestart();
   };
 
   useEffect(() => next(), []);
@@ -646,7 +749,7 @@ function WordScramble({ onWin, loading }: { onWin: (reward: number) => void, loa
   );
 }
 
-function CaptchaSolver({ onWin, loading }: { onWin: (reward: number) => void, loading: boolean }) {
+function CaptchaSolver({ onWin, loading, onRestart }: { onWin: (reward: number) => void, loading: boolean, onRestart: () => void }) {
   const [captcha, setCaptcha] = useState('');
   const [input, setInput] = useState('');
 
@@ -656,6 +759,7 @@ function CaptchaSolver({ onWin, loading }: { onWin: (reward: number) => void, lo
     for (let i = 0; i < 6; i++) res += chars.charAt(Math.floor(Math.random() * chars.length));
     setCaptcha(res);
     setInput('');
+    onRestart();
   };
 
   useEffect(() => next(), []);
@@ -696,13 +800,14 @@ function CaptchaSolver({ onWin, loading }: { onWin: (reward: number) => void, lo
   );
 }
 
-function CoinFlip({ onWin, loading }: { onWin: (reward: number) => void, loading: boolean }) {
+function CoinFlip({ onWin, loading, onRestart }: { onWin: (reward: number) => void, loading: boolean, onRestart: () => void }) {
   const [flipping, setFlipping] = useState(false);
   const [side, setSide] = useState<'heads' | 'tails'>('heads');
   const [bet, setBet] = useState<'heads' | 'tails'>('heads');
 
   const flip = () => {
     if (flipping || loading) return;
+    onRestart();
     setFlipping(true);
     setTimeout(() => {
       const result = Math.random() > 0.5 ? 'heads' : 'tails';
@@ -749,17 +854,24 @@ function CoinFlip({ onWin, loading }: { onWin: (reward: number) => void, loading
   );
 }
 
-function MemoryMatch({ onWin, loading }: { onWin: (reward: number) => void, loading: boolean }) {
+function MemoryMatch({ onWin, loading, onRestart }: { onWin: (reward: number) => void, loading: boolean, onRestart: () => void }) {
   const icons = [RotateCw, Calculator, Eraser, Calendar, Dices, Type];
   const [cards, setCards] = useState<any[]>([]);
   const [flipped, setFlipped] = useState<number[]>([]);
   const [matched, setMatched] = useState<number[]>([]);
 
-  useEffect(() => {
+  const reset = () => {
     const items = [...icons, ...icons]
       .sort(() => Math.random() - 0.5)
       .map((Icon, i) => ({ id: i, Icon }));
     setCards(items);
+    setFlipped([]);
+    setMatched([]);
+    onRestart();
+  };
+
+  useEffect(() => {
+    reset();
   }, []);
 
   const handleFlip = (id: number) => {
@@ -797,20 +909,21 @@ function MemoryMatch({ onWin, loading }: { onWin: (reward: number) => void, load
   );
 }
 
-function WatchEarn({ onWin, loading }: { onWin: (reward: number) => void, loading: boolean }) {
-  const [playing, setPlaying] = useState(false);
+function WatchEarn({ onWin, loading, onRestart }: { onWin: (reward: number) => void, loading: boolean, onRestart: () => void }) {
+  const [watching, setWatching] = useState(false);
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
-    if (progress >= 100 && playing) {
-      setPlaying(false);
+    if (progress >= 100 && watching) {
+      setWatching(false);
       onWin(5);
     }
-  }, [progress, playing, onWin]);
+  }, [progress, watching, onWin]);
 
   const start = () => {
-    if (playing || loading) return;
-    setPlaying(true);
+    if (watching || loading) return;
+    onRestart();
+    setWatching(true);
     setProgress(0);
     const interval = setInterval(() => {
       setProgress(p => {
@@ -826,7 +939,7 @@ function WatchEarn({ onWin, loading }: { onWin: (reward: number) => void, loadin
   return (
     <div className="text-center w-full max-w-md">
       <div className="aspect-video bg-black rounded-3xl mb-8 flex items-center justify-center relative overflow-hidden group">
-        {!playing ? (
+        {!watching ? (
           <button onClick={start} className="text-white hover:scale-110 transition-transform">
             <PlayCircle size={80} />
           </button>

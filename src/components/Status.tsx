@@ -4,7 +4,7 @@ import { db } from '../firebase';
 import { handleFirestoreError, OperationType } from '../firebaseError';
 import { UserProfile, Status as StatusType } from '../types';
 import { Plus, Camera, Eye, Clock, X } from 'lucide-react';
-import { formatChatDate, cn, getTime } from '../utils';
+import { formatChatDate, cn, getTime, toSafeDate } from '../utils';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface StatusProps {
@@ -85,7 +85,11 @@ export default function Status({ profile }: StatusProps) {
           {/* My Status */}
           <div className="p-4 flex items-center gap-4 hover:bg-gray-50 cursor-pointer border-b border-gray-100">
             <div className="relative">
-              <img src={profile.photoURL || ''} className="w-12 h-12 rounded-full border-2 border-gray-300 p-0.5" />
+              <img 
+                src={profile.photoURL || `https://ui-avatars.com/api/?name=${profile.displayName}`} 
+                className="w-12 h-12 rounded-full border-2 border-gray-300 p-0.5" 
+                referrerPolicy="no-referrer"
+              />
               <div className="absolute bottom-0 right-0 bg-[#00A884] text-white rounded-full p-0.5 border-2 border-white">
                 <Plus size={12} />
               </div>
@@ -111,12 +115,16 @@ export default function Status({ profile }: StatusProps) {
                   "w-14 h-14 rounded-full p-0.5 border-2",
                   s.views.includes(profile.uid) ? "border-gray-300" : "border-[#00A884]"
                 )}>
-                  <img src={s.photoURL} className="w-full h-full rounded-full object-cover" />
+                  <img 
+                    src={s.photoURL || `https://ui-avatars.com/api/?name=${s.displayName}`} 
+                    className="w-full h-full rounded-full object-cover" 
+                    referrerPolicy="no-referrer"
+                  />
                 </div>
                 <div className="flex-1">
                   <h3 className="font-bold text-[#111B21]">{s.displayName}</h3>
                   <p className="text-xs text-[#667781]">
-                    {s.timestamp ? formatChatDate(s.timestamp.toDate()) : 'Just now'}
+                    {s.timestamp ? formatChatDate(toSafeDate(s.timestamp)) : 'Just now'}
                   </p>
                 </div>
               </div>
@@ -157,11 +165,15 @@ export default function Status({ profile }: StatusProps) {
               {/* Header */}
               <div className="absolute top-8 left-4 right-4 flex items-center justify-between z-20">
                 <div className="flex items-center gap-3">
-                  <img src={selectedStatus.photoURL} className="w-10 h-10 rounded-full border border-white/20" />
+                  <img 
+                    src={selectedStatus.photoURL || `https://ui-avatars.com/api/?name=${selectedStatus.displayName}`} 
+                    className="w-10 h-10 rounded-full border border-white/20" 
+                    referrerPolicy="no-referrer"
+                  />
                   <div>
                     <h3 className="text-white font-bold text-sm">{selectedStatus.displayName}</h3>
                     <p className="text-white/60 text-[10px]">
-                      {selectedStatus.timestamp ? formatChatDate(selectedStatus.timestamp.toDate()) : 'Just now'}
+                      {selectedStatus.timestamp ? formatChatDate(toSafeDate(selectedStatus.timestamp)) : 'Just now'}
                     </p>
                   </div>
                 </div>
@@ -172,7 +184,13 @@ export default function Status({ profile }: StatusProps) {
 
               {/* Image */}
               <div className="flex-1 flex items-center justify-center bg-black overflow-hidden rounded-3xl shadow-2xl border border-white/5">
-                <img src={selectedStatus.imageUrl} className="max-w-full max-h-full object-contain" />
+                {selectedStatus.imageUrl && (
+                  <img 
+                    src={selectedStatus.imageUrl} 
+                    className="max-w-full max-h-full object-contain" 
+                    referrerPolicy="no-referrer"
+                  />
+                )}
               </div>
 
               {/* Caption */}

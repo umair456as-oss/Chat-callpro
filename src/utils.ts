@@ -26,6 +26,10 @@ export function getTime(val: any): number {
   return isNaN(d.getTime()) ? 0 : d.getTime();
 }
 
+export function toSafeDate(val: any): Date {
+  return new Date(getTime(val));
+}
+
 export const compressImage = (file: File, maxWidth = 800, quality = 0.7): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

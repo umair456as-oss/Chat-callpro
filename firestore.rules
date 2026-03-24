@@ -14,8 +14,9 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() && 
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-         (request.auth.token.email == "abdulrehmanhabib.com@gmail.com" && request.auth.token.email_verified == true));
+        ((request.auth.token.email == "abdulrehmanhabib.com@gmail.com" && request.auth.token.email_verified == true) ||
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
     }
 
     function hasOnlyAllowedFields(fields) {
@@ -42,9 +43,15 @@ service cloud.firestore {
       return data.senderId is string &&
              data.receiverId is string &&
              data.text is string &&
-             data.text.size() < 5000 &&
+             data.text.size() < 10000 &&
              (!('type' in data) || data.type in ['text', 'voice', 'image', 'support']) &&
-             (!('replyTo' in data) || data.replyTo is string);
+             (!('replyTo' in data) || data.replyTo == null || data.replyTo is string) &&
+             (!('status' in data) || data.status in ['sent', 'delivered', 'read']) &&
+             (!('isForwarded' in data) || data.isForwarded is bool) &&
+             (!('audioUrl' in data) || data.audioUrl == null || data.audioUrl is string) &&
+             (!('timestamp' in data) || data.timestamp is timestamp) &&
+             (!('deletedFor' in data) || data.deletedFor is list) &&
+             (!('isDeletedForEveryone' in data) || data.isDeletedForEveryone is bool);
     }
 
     function isValidWithdrawal(data) {
@@ -106,7 +113,7 @@ service cloud.firestore {
     }
 
     match /messages/{messageId} {
-      allow read: if isAuthenticated() && (resource.data.senderId == request.auth.uid || resource.data.receiverId == request.auth.uid || resource.data.senderId == 'alpha-ai-bot' || isAdmin());
+      allow read: if isAuthenticated() && (resource.data.senderId == request.auth.uid || resource.data.receiverId == request.auth.uid || isAdmin());
       allow create: if isAuthenticated() && (request.resource.data.senderId == request.auth.uid || request.resource.data.senderId == 'alpha-ai-bot' || isAdmin()) && isValidMessage(request.resource.data);
       allow update: if isAuthenticated() && (resource.data.receiverId == request.auth.uid || resource.data.senderId == request.auth.uid || isAdmin()) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
     }
@@ -163,6 +170,14 @@ service cloud.firestore {
     match /announcements/{announcementId} {
       allow read: if isAuthenticated();
       allow write: if isAdmin();
+    }
+
+    match /system_configs/{configId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /system_configs_backups/{backupId} {
+      allow read, write: if isAdmin();
     }
 
     match /calls/{callId} {

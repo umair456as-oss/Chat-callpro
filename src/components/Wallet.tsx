@@ -4,7 +4,7 @@ import { db } from '../firebase';
 import { UserProfile, Withdrawal, AppSettings } from '../types';
 import { handleFirestoreError, OperationType } from '../firebaseError';
 import { Wallet as WalletIcon, ArrowUpRight, History, CreditCard, Smartphone, AlertCircle } from 'lucide-react';
-import { formatChatDate, cn, getTime } from '../utils';
+import { formatChatDate, cn, getTime, toSafeDate } from '../utils';
 
 interface WalletProps {
   profile: UserProfile;
@@ -22,6 +22,8 @@ export default function Wallet({ profile }: WalletProps) {
   useEffect(() => {
     const unsubS = onSnapshot(doc(db, 'settings', 'global'), (doc) => {
       if (doc.exists()) setAppSettings(doc.data() as AppSettings);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'settings/global');
     });
 
     const q = query(
@@ -32,6 +34,8 @@ export default function Wallet({ profile }: WalletProps) {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Withdrawal));
       setWithdrawals(list.sort((a, b) => getTime(b.timestamp) - getTime(a.timestamp)));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'withdrawals');
     });
 
     return () => {
@@ -241,7 +245,7 @@ export default function Wallet({ profile }: WalletProps) {
                   withdrawals.map((w) => (
                     <tr key={w.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 text-sm text-[#111B21]">
-                        {w.timestamp ? formatChatDate(w.timestamp.toDate()) : '...'}
+                        {w.timestamp ? formatChatDate(toSafeDate(w.timestamp)) : '...'}
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">

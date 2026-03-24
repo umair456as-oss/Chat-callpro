@@ -194,6 +194,30 @@
         "adTimer": { "type": "number" }
       },
       "required": ["enabled"]
+    },
+    "SystemConfig": {
+      "title": "SystemConfig",
+      "description": "System configuration file content",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "content": { "type": "string" },
+        "path": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "content"]
+    },
+    "SystemConfigBackup": {
+      "title": "SystemConfigBackup",
+      "description": "Backup of system configuration file",
+      "type": "object",
+      "properties": {
+        "originalId": { "type": "string" },
+        "content": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["originalId", "content", "timestamp"]
     }
   },
   "firestore": {
@@ -244,6 +268,14 @@
     "/calls/{callId}": {
       "schema": "Call",
       "description": "Voice and video calls"
+    },
+    "/system_configs/{configId}": {
+      "schema": "SystemConfig",
+      "description": "System configuration files"
+    },
+    "/system_configs_backups/{backupId}": {
+      "schema": "SystemConfigBackup",
+      "description": "Backups of system configuration files"
     }
   }
 }

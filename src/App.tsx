@@ -124,7 +124,7 @@ export default function App() {
       } else {
         setIncomingCall(null);
       }
-    });
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'calls'));
 
     return () => unsubscribe();
   }, [user, activeCall, incomingCall]);

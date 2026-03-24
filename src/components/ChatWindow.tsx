@@ -4,7 +4,7 @@ import { db } from '../firebase';
 import { UserProfile, Message } from '../types';
 import { handleFirestoreError, OperationType } from '../firebaseError';
 import { Send, Plus, Search, MoreVertical, Smile, Mic, Gamepad2, ArrowLeft, Image, BadgeCheck, XCircle, Phone, Play, Pause, Trash2, Share2 } from 'lucide-react';
-import { formatMessageTime, cn, formatChatDate } from '../utils';
+import { formatMessageTime, cn, formatChatDate, toSafeDate } from '../utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { updateDoc, doc } from 'firebase/firestore';
 import VoiceCall from './VoiceCall';
@@ -155,6 +155,7 @@ interface ChatWindowProps {
 
 export default function ChatWindow({ chat, currentUser, onBack }: ChatWindowProps) {
   const [messages, setMessages] = useState<Message[]>([]);
+  const [messageMap, setMessageMap] = useState<Record<string, Message>>({});
   const [newMessage, setNewMessage] = useState('');
   const [showGamesMenu, setShowGamesMenu] = useState(false);
   const [isWallpaperModalOpen, setIsWallpaperModalOpen] = useState(false);
@@ -239,8 +240,20 @@ export default function ChatWindow({ chat, currentUser, onBack }: ChatWindowProp
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
+      const msgs = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return { 
+          id: doc.id, 
+          ...data,
+          // Fallback for serverTimestamp which is null in local cache
+          timestamp: data.timestamp || { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 }
+        } as Message;
+      });
       setMessages(msgs);
+      
+      const map: Record<string, Message> = {};
+      msgs.forEach(m => { if (m.id) map[m.id] = m; });
+      setMessageMap(map);
       
       // Mark unread messages as read (Read Receipts Logic)
       snapshot.docs.forEach(async (doc) => {
@@ -269,14 +282,17 @@ export default function ChatWindow({ chat, currentUser, onBack }: ChatWindowProp
     e?.preventDefault();
     if (!newMessage.trim()) return;
 
+    const messageText = newMessage;
+    const currentReplyingTo = replyingTo;
+
     const msg: Message = {
       senderId: currentUser.uid,
       receiverId: chat.uid,
-      text: newMessage,
+      text: messageText,
       timestamp: serverTimestamp(),
       status: 'sent',
       type: 'text',
-      replyTo: replyingTo?.id || null
+      replyTo: currentReplyingTo?.id || null
     };
 
     setNewMessage('');
@@ -288,7 +304,7 @@ export default function ChatWindow({ chat, currentUser, onBack }: ChatWindowProp
       queue.push(msg);
       localStorage.setItem('msg_queue', JSON.stringify(queue));
       // Add to local state for immediate feedback
-      setMessages(prev => [...prev, { ...msg, id: 'temp-' + Date.now(), status: 'sent' } as Message]);
+      setMessages(prev => [...prev, { ...msg, id: 'temp-' + Date.now(), status: 'sent', timestamp: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 } } as Message]);
       return;
     }
 
@@ -296,7 +312,7 @@ export default function ChatWindow({ chat, currentUser, onBack }: ChatWindowProp
       await addDoc(collection(db, 'messages'), msg);
 
       // Auto-Reply Bot Logic (Elite Feature)
-      if (newMessage.toLowerCase().trim() === 'balance') {
+      if (messageText.toLowerCase().trim() === 'balance') {
         const botReply: Message = {
           senderId: 'alpha-ai-bot',
           receiverId: currentUser.uid,
@@ -307,10 +323,17 @@ export default function ChatWindow({ chat, currentUser, onBack }: ChatWindowProp
           replyTo: null
         };
         setTimeout(async () => {
-          await addDoc(collection(db, 'messages'), botReply);
+          try {
+            await addDoc(collection(db, 'messages'), botReply);
+          } catch (err) {
+            console.error('Bot reply failed:', err);
+          }
         }, 1000);
       }
     } catch (error) {
+      // Restore message if it failed
+      setNewMessage(messageText);
+      setReplyingTo(currentReplyingTo);
       handleFirestoreError(error, OperationType.CREATE, 'messages');
     }
   };
@@ -383,23 +406,27 @@ export default function ChatWindow({ chat, currentUser, onBack }: ChatWindowProp
   const handleSendVoiceMessage = async () => {
     if (!recordedAudio) return;
 
+    const currentAudio = recordedAudio;
+    const currentReplyingTo = replyingTo;
+
     if (previewAudioRef.current) {
       previewAudioRef.current.pause();
       previewAudioRef.current = null;
     }
     setIsPlayingPreview(false);
+    setRecordedAudio(null);
+    setReplyingTo(null);
 
     // Convert blob to base64 for persistent storage in Firestore
-    // Note: Firestore has 1MB limit. This is suitable for short voice notes.
     const reader = new FileReader();
-    reader.readAsDataURL(recordedAudio.blob);
+    reader.readAsDataURL(currentAudio.blob);
     reader.onloadend = async () => {
       const base64Audio = reader.result as string;
       
       // Firestore has 1MB limit. Check size (approx 1.37x larger in base64)
       if (base64Audio.length > 1000000) {
         alert('Voice message is too long. Please record a shorter message (under 30 seconds).');
-        setRecordedAudio(null);
+        setRecordedAudio(currentAudio); // Restore for retry
         return;
       }
 
@@ -407,18 +434,27 @@ export default function ChatWindow({ chat, currentUser, onBack }: ChatWindowProp
         senderId: currentUser.uid,
         receiverId: chat.uid,
         text: 'Voice Message',
+        audioUrl: base64Audio,
         timestamp: serverTimestamp(),
         status: 'sent',
         type: 'voice',
-        audioUrl: base64Audio,
-        replyTo: replyingTo?.id || null
+        replyTo: currentReplyingTo?.id || null
       };
+
+      if (!isOnline) {
+        // Queue locally
+        const queue = JSON.parse(localStorage.getItem('msg_queue') || '[]');
+        queue.push(msg);
+        localStorage.setItem('msg_queue', JSON.stringify(queue));
+        setMessages(prev => [...prev, { ...msg, id: 'temp-' + Date.now(), status: 'sent', timestamp: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 } } as Message]);
+        return;
+      }
 
       try {
         await addDoc(collection(db, 'messages'), msg);
-        setRecordedAudio(null);
-        setReplyingTo(null);
       } catch (error) {
+        setRecordedAudio(currentAudio);
+        setReplyingTo(currentReplyingTo);
         handleFirestoreError(error, OperationType.CREATE, 'messages');
       }
     };
@@ -655,7 +691,7 @@ export default function ChatWindow({ chat, currentUser, onBack }: ChatWindowProp
               )}
               {msg.replyTo && (
                 <div className="bg-black/5 border-l-4 border-[#00A884] p-2 rounded mb-1 text-[10px] text-[#667781]">
-                  {messages.find(m => m.id === msg.replyTo)?.text.slice(0, 50)}...
+                  {messageMap[msg.replyTo]?.text.slice(0, 50)}...
                 </div>
               )}
               {msg.isForwarded && (
@@ -673,7 +709,7 @@ export default function ChatWindow({ chat, currentUser, onBack }: ChatWindowProp
               )}
               <div className="absolute bottom-1 right-2 flex items-center gap-1">
                 <span className="text-[10px] text-[#667781]">
-                  {msg.timestamp ? formatMessageTime(msg.timestamp.toDate()) : '...'}
+                  {msg.timestamp ? formatMessageTime(toSafeDate(msg.timestamp)) : '...'}
                 </span>
                 {msg.senderId === currentUser.uid && (
                   <span className="text-[10px] text-[#53bdeb]">
@@ -909,7 +945,7 @@ export default function ChatWindow({ chat, currentUser, onBack }: ChatWindowProp
                     onClick={() => updateWallpaper(url)}
                     className="aspect-[9/16] rounded-xl overflow-hidden cursor-pointer border-2 border-transparent hover:border-[#00A884] transition-all shadow-sm"
                   >
-                    <img src={url} className="w-full h-full object-cover" />
+                    {url && <img src={url} className="w-full h-full object-cover" referrerPolicy="no-referrer" />}
                   </div>
                 ))}
               </div>

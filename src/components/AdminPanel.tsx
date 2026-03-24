@@ -4,7 +4,8 @@ import {
   getDocs, updateDoc, setDoc, deleteDoc, serverTimestamp, 
   orderBy, limit, writeBatch, addDoc 
 } from 'firebase/firestore';
-import { db } from '../firebase';
+import { sendPasswordResetEmail } from 'firebase/auth';
+import { db, auth } from '../firebase';
 import { Withdrawal, UserProfile, AppSettings, GameSettings, Announcement } from '../types';
 import { 
   ShieldCheck, CheckCircle, XCircle, Users, Ban, BadgeCheck, 
@@ -12,13 +13,19 @@ import {
   Power, Bell, Save, Trash2, Filter, Download, Plus, 
   ChevronRight, LayoutGrid, List, BarChart3, Clock, 
   AlertCircle, Info, CheckCircle2, MoreVertical,
-  ShieldAlert, MessageSquare, TrendingUp, Send, Database, Shield
+  ShieldAlert, MessageSquare, TrendingUp, Send, Database, Shield,
+  Key, Folder
 } from 'lucide-react';
-import { formatChatDate, cn, getTime } from '../utils';
+import { formatChatDate, cn, getTime, toSafeDate } from '../utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { handleFirestoreError, OperationType } from '../utils/errorHandlers';
 
-type AdminTab = 'users' | 'withdrawals' | 'games' | 'announcements' | 'settings' | 'logs' | 'fraud' | 'support' | 'analytics';
+import Editor from 'react-simple-code-editor';
+import { highlight, languages } from 'prismjs';
+import 'prismjs/components/prism-json';
+import 'prismjs/themes/prism-tomorrow.css';
+
+type AdminTab = 'users' | 'withdrawals' | 'games' | 'announcements' | 'settings' | 'logs' | 'fraud' | 'support' | 'analytics' | 'build';
 
 interface SupportTicket {
   id?: string;
@@ -64,9 +71,77 @@ export default function AdminPanel() {
   const [activeTicket, setActiveTicket] = useState<SupportTicket | null>(null);
   const [supportMessages, setSupportMessages] = useState<any[]>([]);
   const [newSupportMsg, setNewSupportMsg] = useState('');
-  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [isBuildModalOpen, setIsBuildModalOpen] = useState(false);
+  const [buildFiles, setBuildFiles] = useState<any[]>([]);
+  const [selectedFile, setSelectedFile] = useState<any | null>(null);
+  const [fileContent, setFileContent] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
-  const tabs: AdminTab[] = ['users', 'analytics', 'withdrawals', 'games', 'announcements', 'support', 'fraud', 'settings', 'logs'];
+  const handleResetPassword = async (email: string) => {
+    try {
+      await sendPasswordResetEmail(auth, email);
+      alert('Password reset email sent successfully!');
+    } catch (error) {
+      console.error('Password reset error:', error);
+      alert('Failed to send password reset email.');
+    }
+  };
+
+  const updateGameConfig = async (gameId: string, updates: Partial<GameSettings>) => {
+    try {
+      await setDoc(doc(db, 'gameSettings', gameId), updates, { merge: true });
+    } catch (error) {
+      console.error('Game config update error:', error);
+    }
+  };
+
+  const handleSaveCode = async () => {
+    if (!selectedFile) return;
+    setIsSaving(true);
+    try {
+      // Create backup
+      const backupId = `${selectedFile.id}_backup_${Date.now()}`;
+      await setDoc(doc(db, 'system_configs_backups', backupId), {
+        originalId: selectedFile.id,
+        content: selectedFile.content,
+        timestamp: serverTimestamp()
+      });
+
+      // Update live code
+      await updateDoc(doc(db, 'system_configs', selectedFile.id), {
+        content: fileContent,
+        updatedAt: serverTimestamp()
+      });
+      alert('Code saved and live!');
+    } catch (error) {
+      console.error('Save code error:', error);
+      alert('Failed to save code.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  useEffect(() => {
+    // Fetch system configs for Build tab
+    const q = query(collection(db, 'system_configs'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const files = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setBuildFiles(files);
+      
+      // Initialize if empty
+      if (snapshot.empty) {
+        const initialFiles = [
+          { id: 'login_page', name: 'login.json', content: JSON.stringify({ title: 'Welcome to Alpha Chat', subtitle: 'Secure Messaging & Earning', theme: 'dark' }, null, 2), path: 'src/pages/login' },
+          { id: 'accounts', name: 'accounts.json', content: JSON.stringify({ allowRegistration: true, requireVerification: false, defaultBalance: 0 }, null, 2), path: 'src/config/accounts' },
+          { id: 'ui_theme', name: 'theme.json', content: JSON.stringify({ primaryColor: '#00A884', secondaryColor: '#F0F2F5', darkMode: true }, null, 2), path: 'src/styles/theme' }
+        ];
+        initialFiles.forEach(f => setDoc(doc(db, 'system_configs', f.id), f));
+      }
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'system_configs'));
+    return () => unsubscribe();
+  }, []);
+
+  const tabs: AdminTab[] = ['users', 'analytics', 'withdrawals', 'games', 'announcements', 'support', 'fraud', 'settings', 'logs', 'build'];
 
   const cycleTab = (direction: 'up' | 'down') => {
     const currentIndex = tabs.indexOf(activeTab);
@@ -85,26 +160,18 @@ export default function AdminPanel() {
     }
   };
 
-  const handleSidebarTouchStart = (e: React.TouchEvent) => {
-    setTouchStart(e.touches[0].clientY);
-  };
-
-  const handleSidebarTouchEnd = (e: React.TouchEvent) => {
-    if (touchStart === null) return;
-    const touchEnd = e.changedTouches[0].clientY;
-    const diff = touchStart - touchEnd;
-    if (Math.abs(diff) > 50) {
-      cycleTab(diff > 0 ? 'down' : 'up');
-    }
-    setTouchStart(null);
-  };
-
   useEffect(() => {
     // Initialize Settings if not exists
     const initSettings = async () => {
       try {
         const settingsRef = doc(db, 'settings', 'global');
-        const settingsSnap = await getDocs(query(collection(db, 'settings'), where('__name__', '==', 'global')));
+        let settingsSnap;
+        try {
+          settingsSnap = await getDocs(query(collection(db, 'settings'), where('__name__', '==', 'global')));
+        } catch (error) {
+          handleFirestoreError(error, OperationType.GET, 'settings/global');
+          return;
+        }
         if (settingsSnap.empty) {
           await setDoc(settingsRef, {
             isMaintenanceMode: false,
@@ -190,7 +257,7 @@ export default function AdminPanel() {
       );
       return onSnapshot(q, (snapshot) => {
         setSupportMessages(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      });
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'support_messages'));
     }
   }, [activeTicket]);
 
@@ -388,7 +455,7 @@ export default function AdminPanel() {
   const pendingWithdrawals = withdrawals.filter(w => w.status === 'pending');
   const totalPendingAmount = pendingWithdrawals.reduce((acc, w) => acc + w.amount, 0);
   const totalApprovedToday = withdrawals
-    .filter(w => w.status === 'approved' && isToday(w.timestamp?.toDate()))
+    .filter(w => w.status === 'approved' && isToday(toSafeDate(w.timestamp)))
     .reduce((acc, w) => acc + w.amount, 0);
 
   function isToday(date: Date) {
@@ -404,8 +471,6 @@ export default function AdminPanel() {
       {/* VS Code Style Sidebar */}
       <div 
         onWheel={handleSidebarWheel}
-        onTouchStart={handleSidebarTouchStart}
-        onTouchEnd={handleSidebarTouchEnd}
         className="w-full md:w-14 bg-[#333333] flex flex-row md:flex-col items-center py-2 md:py-4 justify-around md:justify-start md:space-y-6 border-t md:border-t-0 md:border-r border-[#2b2b2b] z-20 order-last md:order-first touch-none"
       >
         <button 
@@ -471,6 +536,14 @@ export default function AdminPanel() {
         >
           <Settings size={20} />
           <span className="text-[8px] md:hidden">Config</span>
+        </button>
+        <button 
+          onClick={() => setActiveTab('build')}
+          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'build' ? "text-white border-b-2 md:border-b-0 md:border-l-2 border-purple-500" : "text-[#858585] hover:text-white")}
+          title="Build System"
+        >
+          <Folder size={20} />
+          <span className="text-[8px] md:hidden">Build</span>
         </button>
         <div className="md:mt-auto md:pb-4">
           <button 
@@ -563,7 +636,12 @@ export default function AdminPanel() {
                                   </div>
                                   <div>
                                     <div className="text-white font-medium flex items-center gap-1">
-                                      {u.displayName}
+                                      <input
+                                        type="text"
+                                        value={u.displayName || ''}
+                                        onChange={(e) => updateDoc(doc(db, 'users', u.uid), { displayName: e.target.value })}
+                                        className="bg-transparent border-b border-transparent hover:border-[#333333] focus:border-blue-500 outline-none text-xs font-bold text-white w-32"
+                                      />
                                       {u.isVerified && <BadgeCheck size={14} className="text-blue-400" />}
                                     </div>
                                     <div className="text-[#858585] text-[10px]">{u.email}</div>
@@ -580,7 +658,17 @@ export default function AdminPanel() {
                                   {u.level || 'Bronze'}
                                 </span>
                               </td>
-                              <td className="px-4 py-3 font-bold text-green-400">Rs. {u.balance.toFixed(2)}</td>
+                              <td className="px-4 py-3 font-bold text-green-400">
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[10px] text-[#858585]">Rs.</span>
+                                  <input
+                                    type="number"
+                                    value={u.balance}
+                                    onChange={(e) => updateUserBalance(u.uid, parseFloat(e.target.value))}
+                                    className="bg-transparent border-b border-transparent hover:border-[#333333] focus:border-blue-500 outline-none text-xs font-bold text-green-400 w-20"
+                                  />
+                                </div>
+                              </td>
                               <td className="px-4 py-3">
                                 {u.isOnline ? (
                                   <div className="flex items-center gap-2 text-blue-400">
@@ -620,6 +708,13 @@ export default function AdminPanel() {
                           <td className="px-4 py-3 text-[#858585]">{formatChatDate(u.lastSeen)}</td>
                           <td className="px-4 py-3 text-right">
                             <div className="flex justify-end gap-2 transition-opacity">
+                              <button 
+                                onClick={() => handleResetPassword(u.email)}
+                                className="p-1.5 bg-[#3c3c3c] hover:bg-blue-600 text-white rounded transition-colors"
+                                title="Reset Password"
+                              >
+                                <Key size={14} />
+                              </button>
                               <button 
                                 onClick={() => { setSelectedUser(u); setIsEditModalOpen(true); }}
                                 className="p-1.5 bg-[#3c3c3c] hover:bg-blue-600 text-white rounded transition-colors"
@@ -791,7 +886,7 @@ export default function AdminPanel() {
                           )}>
                             {msg.text}
                             <div className="text-[8px] opacity-50 mt-1">
-                              {msg.timestamp?.toDate().toLocaleTimeString()}
+                              {toSafeDate(msg.timestamp).toLocaleTimeString()}
                             </div>
                           </div>
                         </div>
@@ -820,6 +915,125 @@ export default function AdminPanel() {
                     <p className="text-sm">Select a ticket to begin support session</p>
                   </div>
                 )}
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'build' && (
+            <motion.div 
+              key="build"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="h-full flex flex-col gap-6"
+            >
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <Database size={20} className="text-purple-400" />
+                  Build & System Explorer
+                </h2>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => {
+                      const name = prompt("Enter file name (e.g. config.json):");
+                      if (name) {
+                        const id = name.replace('.', '_');
+                        setDoc(doc(db, 'system_configs', id), { id, name, content: '{}', path: 'src/custom' });
+                      }
+                    }}
+                    className="bg-[#333333] hover:bg-[#444444] text-white px-3 py-1.5 rounded text-xs flex items-center gap-2"
+                  >
+                    <Plus size={14} /> New File
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex-1 flex flex-col md:flex-row gap-6 min-h-0">
+                {/* File Explorer */}
+                <div className="w-full md:w-64 bg-[#252526] rounded-xl border border-[#333333] overflow-hidden flex flex-col shrink-0">
+                  <div className="p-3 bg-[#37373d] border-b border-[#333333] flex items-center gap-2">
+                    <FileText size={14} className="text-blue-400" />
+                    <span className="text-[10px] uppercase font-bold text-[#858585]">Project Files</span>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                    {/* Folder Structure Simulation */}
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 px-2 py-1 text-[#858585] text-[10px] uppercase font-bold">
+                        <ChevronRight size={12} /> Login
+                      </div>
+                      <div className="flex items-center gap-2 px-2 py-1 text-[#858585] text-[10px] uppercase font-bold">
+                        <ChevronRight size={12} /> Account
+                      </div>
+                      <div className="flex items-center gap-2 px-2 py-1 text-[#858585] text-[10px] uppercase font-bold">
+                        <ChevronRight size={12} /> Games
+                      </div>
+                      <div className="flex items-center gap-2 px-2 py-1 text-[#858585] text-[10px] uppercase font-bold">
+                        <ChevronRight size={12} /> Assets
+                      </div>
+                    </div>
+                    <div className="mt-4 pt-4 border-t border-[#333333]">
+                      {buildFiles.map(file => (
+                        <button
+                          key={file.id}
+                          onClick={() => {
+                            setSelectedFile(file);
+                            setFileContent(file.content);
+                          }}
+                          className={cn(
+                            "w-full text-left px-3 py-2 rounded text-xs flex items-center gap-2 transition-colors",
+                            selectedFile?.id === file.id ? "bg-[#37373d] text-white" : "text-[#858585] hover:bg-[#2a2d2e] hover:text-white"
+                          )}
+                        >
+                          <FileText size={14} className={cn(selectedFile?.id === file.id ? "text-blue-400" : "text-[#858585]")} />
+                          {file.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Code Editor */}
+                <div className="flex-1 bg-[#252526] rounded-xl border border-[#333333] overflow-hidden flex flex-col shadow-2xl">
+                  {selectedFile ? (
+                    <>
+                      <div className="p-3 bg-[#37373d] border-b border-[#333333] flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-[#858585] font-mono">{selectedFile.path}/</span>
+                          <span className="text-xs text-white font-bold">{selectedFile.name}</span>
+                        </div>
+                        <button 
+                          onClick={handleSaveCode}
+                          disabled={isSaving}
+                          className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-1.5 rounded text-xs font-bold flex items-center gap-2 transition-all"
+                        >
+                          {isSaving ? <Clock size={14} className="animate-spin" /> : <Save size={14} />} 
+                          Save & Go Live
+                        </button>
+                      </div>
+                      <div className="flex-1 overflow-auto bg-[#1e1e1e]">
+                        <Editor
+                          value={fileContent}
+                          onValueChange={code => setFileContent(code)}
+                          highlight={code => highlight(code, languages.json, 'json')}
+                          padding={20}
+                          style={{
+                            fontFamily: '"Fira code", "Fira Mono", monospace',
+                            fontSize: 14,
+                            minHeight: '100%',
+                            backgroundColor: '#1e1e1e',
+                            color: '#d4d4d4'
+                          }}
+                          className="outline-none"
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex-1 flex flex-col items-center justify-center text-[#858585] space-y-4">
+                      <Database size={48} className="opacity-20" />
+                      <p className="text-sm">Select a file from the explorer to edit system code</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </motion.div>
           )}
@@ -978,7 +1192,7 @@ export default function AdminPanel() {
                             <td className="px-4 py-3 font-bold text-green-400">Rs. {w.amount.toFixed(2)}</td>
                             <td className="px-4 py-3">{w.paymentMethod}</td>
                             <td className="px-4 py-3 font-mono">{w.phoneNumber}</td>
-                            <td className="px-4 py-3 text-[#858585]">{formatChatDate(w.timestamp?.toDate())}</td>
+                            <td className="px-4 py-3 text-[#858585]">{formatChatDate(toSafeDate(w.timestamp))}</td>
                             <td className="px-4 py-3">
                               <span className={cn(
                                 "px-2 py-0.5 rounded text-[10px] font-bold uppercase",
@@ -1099,7 +1313,7 @@ export default function AdminPanel() {
 
                       <div className="space-y-3">
                         <div>
-                          <label className="block text-[10px] text-[#858585] uppercase font-bold mb-1">Earning Rate (PKR)</label>
+                          <label className="block text-[10px] text-[#858585] uppercase font-bold mb-1">Reward Price (Pts)</label>
                           <div className="flex items-center gap-2">
                             <button 
                               onClick={() => updateGameRate(game.id, Math.max(0, game.earningRate - 0.1))}
@@ -1123,12 +1337,21 @@ export default function AdminPanel() {
                           </div>
                         </div>
                         <div>
-                          <label className="block text-[10px] text-[#858585] uppercase font-bold mb-1">Daily Limit</label>
+                          <label className="block text-[10px] text-[#858585] uppercase font-bold mb-1">Daily Play Limit</label>
                           <input 
                             type="number" 
                             className="w-full bg-[#1e1e1e] border border-[#333333] focus:border-blue-500 rounded px-3 py-1.5 text-sm text-white outline-none"
                             value={game.dailyLimit}
                             onChange={(e) => setDoc(doc(db, 'gameSettings', game.id), { dailyLimit: parseInt(e.target.value) }, { merge: true })}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-[#858585] uppercase font-bold mb-1">Entry Fee (PKR)</label>
+                          <input 
+                            type="number" 
+                            className="w-full bg-[#1e1e1e] border border-[#333333] focus:border-blue-500 rounded px-3 py-1.5 text-sm text-white outline-none"
+                            value={game.price || 0}
+                            onChange={(e) => setDoc(doc(db, 'gameSettings', game.id), { price: parseFloat(e.target.value) }, { merge: true })}
                           />
                         </div>
                       </div>
@@ -1637,7 +1860,7 @@ export default function AdminPanel() {
               </div>
               <div className="p-6 space-y-6">
                 <div className="flex items-center gap-4">
-                  <img src={selectedUser.photoURL || ''} className="w-16 h-16 rounded-xl border border-[#333333]" />
+                  <img src={selectedUser.photoURL || `https://ui-avatars.com/api/?name=${selectedUser.displayName}`} className="w-16 h-16 rounded-xl border border-[#333333]" referrerPolicy="no-referrer" />
                   <div>
                     <div className="text-white font-bold">{selectedUser.displayName}</div>
                     <div className="text-xs text-[#858585]">{selectedUser.email}</div>
@@ -1645,6 +1868,15 @@ export default function AdminPanel() {
                 </div>
                 
                 <div className="space-y-4">
+                  <div>
+                    <label className="block text-[10px] text-[#858585] uppercase font-bold mb-1">Display Name</label>
+                    <input 
+                      type="text" 
+                      id="edit-name"
+                      className="w-full bg-[#1e1e1e] border border-[#333333] focus:border-blue-500 rounded px-3 py-2 text-white outline-none"
+                      defaultValue={selectedUser.displayName}
+                    />
+                  </div>
                   <div>
                     <label className="block text-[10px] text-[#858585] uppercase font-bold mb-1">Manual Balance Adjustment</label>
                     <div className="flex items-center gap-2">
@@ -1679,13 +1911,32 @@ export default function AdminPanel() {
                       placeholder="VIP, Pro, OG"
                     />
                   </div>
+                  <div>
+                    <button 
+                      onClick={async () => {
+                        try {
+                          await sendPasswordResetEmail(auth, selectedUser.email);
+                          alert('Password reset email sent to ' + selectedUser.email);
+                        } catch (error) {
+                          console.error('Error sending reset email:', error);
+                          alert('Failed to send reset email');
+                        }
+                      }}
+                      className="w-full flex items-center justify-center gap-2 bg-orange-600/20 hover:bg-orange-600/30 text-orange-400 border border-orange-800/50 font-bold py-2 rounded-lg transition-all"
+                    >
+                      <Key size={14} />
+                      Send Password Reset Email
+                    </button>
+                  </div>
                   <div className="flex gap-4">
                     <button 
                       onClick={() => {
+                        const newName = (document.getElementById('edit-name') as HTMLInputElement).value;
                         const newBalance = parseFloat((document.getElementById('edit-balance') as HTMLInputElement).value);
                         const newLevel = (document.getElementById('edit-level') as HTMLSelectElement).value;
                         const newBadges = (document.getElementById('edit-badges') as HTMLInputElement).value.split(',').map(b => b.trim()).filter(b => b);
                         updateDoc(doc(db, 'users', selectedUser.uid), { 
+                          displayName: newName,
                           balance: newBalance,
                           level: newLevel,
                           badges: newBadges

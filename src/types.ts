@@ -111,6 +111,7 @@ export interface GameSettings {
   earningRate: number;
   isEnabled: boolean;
   dailyLimit: number;
+  price: number;
 }
 
 export interface Announcement {
