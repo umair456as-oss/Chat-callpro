@@ -81,7 +81,7 @@ export default function Status({ profile }: StatusProps) {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
+        <div className="scrollable-content custom-scrollbar">
           {/* My Status */}
           <div className="p-4 flex items-center gap-4 hover:bg-gray-50 cursor-pointer border-b border-gray-100">
             <div className="relative">

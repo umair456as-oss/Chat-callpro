@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, or, and } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, or, and, runTransaction } from 'firebase/firestore';
 import { db } from '../firebase';
-import { UserProfile, Message } from '../types';
+import { UserProfile, Message, AppSettings } from '../types';
 import { handleFirestoreError, OperationType } from '../firebaseError';
 import { Send, Plus, Search, MoreVertical, Smile, Mic, Gamepad2, ArrowLeft, Image, BadgeCheck, XCircle, Phone, Play, Pause, Trash2, Share2, Check } from 'lucide-react';
 import { formatMessageTime, cn, formatChatDate, toSafeDate } from '../utils';
@@ -274,9 +274,10 @@ interface ChatWindowProps {
   chat: UserProfile;
   currentUser: UserProfile;
   onBack?: () => void;
+  appSettings: AppSettings | null;
 }
 
-export default function ChatWindow({ chat, currentUser, onBack }: ChatWindowProps) {
+export default function ChatWindow({ chat, currentUser, onBack, appSettings }: ChatWindowProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [messageMap, setMessageMap] = useState<Record<string, Message>>({});
   const [newMessage, setNewMessage] = useState('');
@@ -434,24 +435,73 @@ export default function ChatWindow({ chat, currentUser, onBack }: ChatWindowProp
     try {
       await addDoc(collection(db, 'messages'), msg);
 
+      // Chat to Earn Logic (Elite Feature)
+      const rewardAmount = appSettings?.chatRewardAmount || 0;
+      const now = Date.now();
+      const lastRewardTime = currentUser.lastChatRewardTime || 0;
+      const COOLDOWN = 10000; // 10 seconds cooldown
+
+      if (rewardAmount > 0 && (now - lastRewardTime) > COOLDOWN) {
+        await runTransaction(db, async (transaction) => {
+          const userRef = doc(db, 'users', currentUser.uid);
+          const userDoc = await transaction.get(userRef);
+          if (!userDoc.exists()) return;
+          
+          const currentBalance = userDoc.data().balance || 0;
+          transaction.update(userRef, {
+            balance: currentBalance + rewardAmount,
+            lastChatRewardTime: now
+          });
+
+          // Log the reward
+          const logRef = doc(collection(db, 'activityLogs'));
+          transaction.set(logRef, {
+            userId: currentUser.uid,
+            userName: currentUser.displayName,
+            action: `Earned Rs. ${rewardAmount} from chatting`,
+            timestamp: serverTimestamp()
+          });
+        });
+      }
+
       // Auto-Reply Bot Logic (Elite Feature)
-      if (messageText.toLowerCase().trim() === 'balance') {
-        const botReply: Message = {
-          senderId: 'alpha-ai-bot',
-          receiverId: currentUser.uid,
-          text: `Your current balance is: Rs. ${currentUser.balance.toFixed(2)}`,
-          timestamp: serverTimestamp(),
-          status: 'sent',
-          type: 'text',
-          replyTo: null
-        };
-        setTimeout(async () => {
-          try {
-            await addDoc(collection(db, 'messages'), botReply);
-          } catch (err) {
-            console.error('Bot reply failed:', err);
-          }
-        }, 1000);
+      if (appSettings?.botAutoReplyEnabled) {
+        let botText = '';
+        const lowerMsg = messageText.toLowerCase().trim();
+        
+        if (lowerMsg === 'balance') {
+          botText = `Your current balance is: Rs. ${currentUser.balance.toFixed(2)}`;
+        } else if (lowerMsg === 'hi' || lowerMsg === 'hello' || lowerMsg === 'hey') {
+          botText = appSettings.botWelcomeMessage || 'Hello! How can I help you today?';
+        } else if (lowerMsg === 'help') {
+          botText = 'Available commands: balance, help, status, games, wallet';
+        } else if (lowerMsg === 'status') {
+          botText = `System Status: Online | Level: ${currentUser.level || 'Bronze'} | Exp: ${currentUser.experience || 0}`;
+        } else if (lowerMsg === 'games') {
+          botText = 'You can play games like Lucky Spin, Math Quiz, and more in the Games tab to earn rewards!';
+        } else if (lowerMsg === 'wallet') {
+          botText = 'Go to the Wallet tab to withdraw your earnings. Minimum withdrawal is Rs. 500.';
+        }
+
+        if (botText) {
+          const botReply: Message = {
+            senderId: 'alpha-ai-bot',
+            senderName: appSettings.botName || 'Alpha Bot',
+            receiverId: currentUser.uid,
+            text: botText,
+            timestamp: serverTimestamp(),
+            status: 'sent',
+            type: 'text',
+            replyTo: null
+          };
+          setTimeout(async () => {
+            try {
+              await addDoc(collection(db, 'messages'), botReply);
+            } catch (err) {
+              console.error('Bot reply failed:', err);
+            }
+          }, 1000);
+        }
       }
     } catch (error) {
       // Restore message if it failed
@@ -750,7 +800,7 @@ export default function ChatWindow({ chat, currentUser, onBack }: ChatWindowProp
       {/* Messages Area */}
       <div 
         ref={scrollRef}
-        className="flex-1 overflow-y-auto p-4 space-y-1 z-10 custom-scrollbar"
+        className="scrollable-content p-4 space-y-1 z-10"
       >
         {messages.filter(m => !m.deletedFor?.includes(currentUser.uid)).map((msg) => (
           <MessageBubble
@@ -767,7 +817,7 @@ export default function ChatWindow({ chat, currentUser, onBack }: ChatWindowProp
       </div>
 
       {/* Input Area */}
-      <div className="p-2 bg-[#F0F2F5] flex flex-col gap-2 z-10">
+      <div className="fixed-footer p-2 bg-[#F0F2F5] flex flex-col gap-2 z-10">
         <AnimatePresence>
           {replyingTo && (
             <motion.div 

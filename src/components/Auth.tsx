@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { auth, googleProvider, db } from '../firebase';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, query, collection, where, getDocs } from 'firebase/firestore';
 import { LogIn, Mail, Lock, User, ArrowRight, Github } from 'lucide-react';
 import { cn } from '../utils';
 
@@ -15,10 +15,17 @@ export default function Auth() {
 
   const handleGoogleLogin = async () => {
     try {
+      setError(null);
       setLoading(true);
       await signInWithPopup(auth, googleProvider);
     } catch (error: any) {
-      setError(error.message);
+      if (error.code === 'auth/popup-closed-by-user') {
+        setError('Login cancelled. Please keep the popup open to sign in.');
+      } else if (error.code === 'auth/cancelled-popup-request') {
+        setError('Multiple login requests detected. Please try again.');
+      } else {
+        setError(error.message);
+      }
       console.error('Login error:', error);
     } finally {
       setLoading(false);
@@ -33,6 +40,7 @@ export default function Auth() {
     try {
       if (isRegistering) {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        
         if (displayName) {
           await updateProfile(userCredential.user, { displayName });
         }
@@ -49,22 +57,49 @@ export default function Auth() {
           role: 'user',
           isOnline: true,
           lastSeen: new Date().toISOString(),
-          isVerified: false,
+          isVerified: true,
           isBanned: false,
           level: 'Bronze',
           experience: 0,
           createdAt: serverTimestamp()
         });
       } else {
-        await signInWithEmailAndPassword(auth, email, password);
+        let loginEmail = email;
+        
+        // If the input doesn't look like an email, try to find the user by displayName
+        if (!email.includes('@')) {
+          const q = query(collection(db, 'users'), where('displayName', '==', email));
+          const querySnapshot = await getDocs(q);
+          if (!querySnapshot.empty) {
+            loginEmail = querySnapshot.docs[0].data().email;
+          } else {
+            throw { code: 'auth/user-not-found', message: 'No account found with this display name.' };
+          }
+        }
+        
+        await signInWithEmailAndPassword(auth, loginEmail, password);
       }
     } catch (error: any) {
       let message = error.message;
-      if (error.code === 'auth/email-already-in-use') message = 'Email already registered.';
-      if (error.code === 'auth/invalid-credential') message = 'Invalid email or password.';
-      if (error.code === 'auth/weak-password') message = 'Password should be at least 6 characters.';
+      if (error.code === 'auth/email-already-in-use') {
+        message = 'This email is already registered. Please sign in instead.';
+      } else if (error.code === 'auth/invalid-credential') {
+        message = 'Invalid email or password. Please check your credentials.';
+      } else if (error.code === 'auth/weak-password') {
+        message = 'Password is too weak. Please use at least 6 characters.';
+      } else if (error.code === 'auth/network-request-failed') {
+        message = 'Network error. Please check your internet connection.';
+      } else if (error.code === 'auth/invalid-email') {
+        message = 'Please enter a valid email address.';
+      } else if (error.code === 'auth/user-not-found') {
+        message = 'No account found with this email.';
+      } else if (error.code === 'auth/wrong-password') {
+        message = 'Incorrect password.';
+      } else if (error.code === 'auth/too-many-requests') {
+        message = 'Too many failed attempts. Please try again later.';
+      }
       setError(message);
-      console.error('Auth error:', error);
+      console.error('Auth error:', error.code, error.message);
     } finally {
       setLoading(false);
     }
@@ -104,8 +139,8 @@ export default function Auth() {
           <div className="relative">
             <Mail size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8696a0]" />
             <input
-              type="email"
-              placeholder="Email Address"
+              type="text"
+              placeholder={isRegistering ? "Email Address" : "Email or Display Name"}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full bg-[#111B21] border border-[#2b2b2b] focus:border-[#00A884] rounded-xl py-3 pl-10 pr-4 text-white text-sm outline-none transition-all"

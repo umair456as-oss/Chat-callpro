@@ -85,25 +85,29 @@ export default function ChatList({ onSelectChat, selectedChat, searchQuery = '' 
       return;
     }
 
-    // Search by exact email only for privacy
-    const q = query(
-      collection(db, 'users'),
-      where('email', '==', searchTerm.trim())
-    );
-    
-    let snapshot;
+    setIsLoading(true);
     try {
-      snapshot = await getDocs(q);
+      // Search by exact email or display name
+      const q = query(
+        collection(db, 'users'),
+        or(
+          where('email', '==', searchTerm.trim()),
+          where('displayName', '==', searchTerm.trim())
+        )
+      );
+      
+      const snapshot = await getDocs(q);
+      const results = snapshot.docs
+        .map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile))
+        .filter(u => u.uid !== auth.currentUser?.uid);
+      
+      const uniqueResults = Array.from(new Map(results.map(u => [u.uid, u])).values());
+      setSearchResults(uniqueResults);
     } catch (error) {
       handleFirestoreError(error, OperationType.GET, 'users');
-      return;
+    } finally {
+      setIsLoading(false);
     }
-    const results = snapshot.docs
-      .map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile))
-      .filter(u => u.uid !== auth.currentUser?.uid);
-    
-    const uniqueResults = Array.from(new Map(results.map(u => [u.uid, u])).values());
-    setSearchResults(uniqueResults);
   };
 
   const displayedUsers = searchTerm 
@@ -115,27 +119,35 @@ export default function ChatList({ onSelectChat, selectedChat, searchQuery = '' 
 
   return (
     <div className="flex flex-col h-full bg-white">
-      <div className="p-4 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-[#111B21] tracking-tight">Chats</h1>
-        <div className="flex gap-2">
-          <button className="p-2 hover:bg-gray-100 rounded-full transition-colors text-[#54656F]"><Filter size={20} /></button>
-          <button className="p-2 hover:bg-gray-100 rounded-full transition-colors text-[#54656F]"><UserPlus size={20} /></button>
+      <div className="p-4 flex items-center justify-between bg-white sticky top-0 z-20">
+        <h1 className="text-2xl font-black text-[#111B21] tracking-tight">Chats</h1>
+        <div className="flex gap-1">
+          <button className="p-2.5 hover:bg-[#F0F2F5] rounded-full transition-all text-[#54656F] active:scale-90"><Filter size={20} /></button>
+          <button className="p-2.5 hover:bg-[#F0F2F5] rounded-full transition-all text-[#54656F] active:scale-90"><UserPlus size={20} /></button>
         </div>
       </div>
 
-      <div className="px-4 pb-2">
+      <div className="px-4 pb-4 bg-white sticky top-[72px] z-20 shadow-sm">
         <form onSubmit={handleSearch} className="relative group">
           <input
             type="text"
-            placeholder="Search or start new chat"
-            className="w-full bg-[#F0F2F5] py-2 pl-12 pr-4 rounded-xl text-sm focus:outline-none focus:bg-white focus:ring-1 focus:ring-[#00A884] transition-all border border-transparent focus:border-transparent"
+            placeholder="Search or start new chat..."
+            className="w-full bg-[#F0F2F5] py-2.5 pl-12 pr-12 rounded-2xl text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#00A884] transition-all border border-transparent shadow-inner"
             value={searchTerm}
             onChange={(e) => {
               setSearchTerm(e.target.value);
               if (!e.target.value) setSearchResults([]);
             }}
           />
-          <Search className="absolute left-4 top-2.5 text-[#54656F] group-focus-within:text-[#00A884] transition-colors" size={18} />
+          <Search className="absolute left-4 top-3 text-[#54656F] group-focus-within:text-[#00A884] transition-colors" size={18} />
+          {searchTerm && (
+            <button 
+              type="submit"
+              className="absolute right-2 top-1.5 px-3 py-1 bg-[#00A884] text-white text-[10px] font-black uppercase rounded-lg hover:bg-[#008F6F] transition-colors shadow-sm"
+            >
+              Find
+            </button>
+          )}
         </form>
       </div>
 
@@ -143,87 +155,105 @@ export default function ChatList({ onSelectChat, selectedChat, searchQuery = '' 
         <AnimatePresence mode="popLayout">
           {isLoading ? (
             Array.from({ length: 10 }).map((_, i) => <ChatSkeleton key={i} />)
-          ) : displayedUsers.length === 0 ? (
-            <motion.div 
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="p-12 text-center flex flex-col items-center"
-            >
-              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4 text-gray-400">
-                <Search size={32} />
-              </div>
-              <p className="text-[#667781] text-sm font-medium">
-                {searchTerm ? "No results found" : "No active chats yet"}
-              </p>
-              <p className="text-[#8696A0] text-xs mt-1">
-                {searchTerm ? "Try searching for another email" : "Search for friends to start chatting!"}
-              </p>
-            </motion.div>
           ) : (
-            displayedUsers.map((user) => (
-              <motion.div
-                layout
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                key={user.uid}
-                onClick={() => onSelectChat(user)}
-                className={cn(
-                  "flex items-center p-3 cursor-pointer hover:bg-[#F5F6F6] border-b border-[#F5F6F6] transition-all duration-200 group relative mx-2 rounded-xl mb-1",
-                  selectedChat?.uid === user.uid && "bg-[#F0F2F5] hover:bg-[#F0F2F5]"
-                )}
-              >
-                {selectedChat?.uid === user.uid && (
-                  <motion.div 
-                    layoutId="active-indicator"
-                    className="absolute left-0 w-1.5 h-8 bg-[#00A884] rounded-r-full z-10" 
-                  />
-                )}
-                
-                <div className="relative flex-shrink-0">
-                  <div className={cn(
-                    "p-[2px] rounded-full transition-all duration-500",
-                    user.isOnline ? "bg-gradient-to-tr from-[#25D366] to-[#00A884] shadow-sm" : "bg-gray-200"
-                  )}>
-                    <img
-                      src={user.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}`}
-                      alt={user.displayName || ''}
-                      className="w-14 h-14 rounded-full object-cover border-2 border-white"
-                      referrerPolicy="no-referrer"
-                    />
-                  </div>
-                  {user.isOnline && (
-                    <div className="absolute bottom-0.5 right-0.5 w-4 h-4 bg-[#25D366] rounded-full border-2 border-white shadow-md"></div>
-                  )}
+            <>
+              {searchTerm && searchResults.length > 0 && (
+                <div className="px-6 py-2 text-[10px] font-black text-[#00A884] uppercase tracking-[0.2em] bg-[#F0F2F5]/50">
+                  Global Search
                 </div>
-                <div className="flex-1 min-w-0 ml-4">
-                  <div className="flex justify-between items-baseline mb-1">
-                    <h3 className="font-bold text-[#111B21] truncate group-hover:text-[#00A884] transition-colors text-base">
-                      {user.displayName}
-                    </h3>
-                    <span className={cn(
-                      "text-[11px] font-bold transition-colors uppercase tracking-tighter",
-                      user.isOnline ? "text-[#00A884]" : "text-[#8696A0]"
-                    )}>
-                      {user.isOnline ? 'Online' : 'Offline'}
-                    </span>
+              )}
+              
+              {!searchTerm && users.length > 0 && (
+                <div className="px-6 py-2 text-[10px] font-black text-[#667781] uppercase tracking-[0.2em] bg-[#F0F2F5]/50">
+                  Recent Chats
+                </div>
+              )}
+
+              {displayedUsers.length === 0 ? (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="p-12 text-center flex flex-col items-center"
+                >
+                  <div className="w-20 h-20 bg-[#F0F2F5] rounded-full flex items-center justify-center mb-4 text-[#8696A0] shadow-inner">
+                    <Search size={32} />
                   </div>
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm text-[#667781] truncate flex-1 font-medium">
-                      {user.isVerified && <span className="text-[#00A884] mr-1">✓</span>}
-                      {user.bio || user.email}
-                    </p>
-                    {user.isOnline && (
+                  <p className="text-[#111B21] font-bold">
+                    {searchTerm ? "No results found" : "No active chats yet"}
+                  </p>
+                  <p className="text-[#8696A0] text-xs mt-2 max-w-[200px] mx-auto leading-relaxed">
+                    {searchTerm 
+                      ? "Try searching for a full email address or exact username" 
+                      : "Start a conversation by searching for friends!"}
+                  </p>
+                </motion.div>
+              ) : (
+                displayedUsers.map((user) => (
+                  <motion.div
+                    layout
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.98 }}
+                    key={user.uid}
+                    onClick={() => onSelectChat(user)}
+                    className={cn(
+                      "flex items-center p-3.5 cursor-pointer hover:bg-[#F5F6F6] border-b border-[#F5F6F6] transition-all duration-200 group relative mx-2 rounded-2xl mb-1",
+                      selectedChat?.uid === user.uid && "bg-[#F0F2F5] hover:bg-[#F0F2F5] shadow-sm"
+                    )}
+                  >
+                    {selectedChat?.uid === user.uid && (
                       <motion.div 
-                        animate={{ scale: [1, 1.3, 1], opacity: [0.5, 1, 0.5] }}
-                        transition={{ repeat: Infinity, duration: 2.5 }}
-                        className="w-2.5 h-2.5 bg-[#00A884] rounded-full ml-2 shadow-[0_0_8px_rgba(0,168,132,0.4)]"
+                        layoutId="active-indicator"
+                        className="absolute left-0 w-1.5 h-10 bg-[#00A884] rounded-r-full z-10" 
                       />
                     )}
-                  </div>
-                </div>
-              </motion.div>
-            ))
+                    
+                    <div className="relative flex-shrink-0">
+                      <div className={cn(
+                        "p-[2.5px] rounded-full transition-all duration-500",
+                        user.isOnline ? "bg-gradient-to-tr from-[#25D366] to-[#00A884] shadow-md" : "bg-gray-200"
+                      )}>
+                        <img
+                          src={user.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}`}
+                          alt={user.displayName || ''}
+                          className="w-14 h-14 rounded-full object-cover border-2 border-white"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
+                      {user.isOnline && (
+                        <div className="absolute bottom-0.5 right-0.5 w-4 h-4 bg-[#25D366] rounded-full border-2 border-white shadow-lg"></div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0 ml-4">
+                      <div className="flex justify-between items-baseline mb-1">
+                        <h3 className="font-bold text-[#111B21] truncate group-hover:text-[#00A884] transition-colors text-base">
+                          {user.displayName}
+                        </h3>
+                        <span className={cn(
+                          "text-[10px] font-black transition-colors uppercase tracking-widest",
+                          user.isOnline ? "text-[#00A884]" : "text-[#8696A0]"
+                        )}>
+                          {user.isOnline ? 'Online' : 'Offline'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm text-[#667781] truncate flex-1 font-medium">
+                          {user.isVerified && <span className="text-[#00A884] mr-1">✓</span>}
+                          {user.bio || user.email}
+                        </p>
+                        {user.isOnline && (
+                          <motion.div 
+                            animate={{ scale: [1, 1.4, 1], opacity: [0.4, 1, 0.4] }}
+                            transition={{ repeat: Infinity, duration: 2.5 }}
+                            className="w-2.5 h-2.5 bg-[#00A884] rounded-full ml-2 shadow-[0_0_10px_rgba(0,168,132,0.5)]"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                ))
+              )}
+            </>
           )}
         </AnimatePresence>
       </div>

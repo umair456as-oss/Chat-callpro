@@ -7,28 +7,32 @@ import ChatWindow from './components/ChatWindow';
 import Wallet from './components/Wallet';
 import Games from './components/Games';
 import Status from './components/Status';
+import Contacts from './components/Contacts';
 import AdminPanel from './components/AdminPanel';
 import { UserProfile, AppSettings, Announcement, Call } from './types';
-import { doc, setDoc, onSnapshot, collection, query, orderBy, where, updateDoc } from 'firebase/firestore';
-import { db } from './firebase';
+import { doc, setDoc, onSnapshot, collection, query, orderBy, where, updateDoc, limit } from 'firebase/firestore';
+import { getToken, onMessage } from 'firebase/messaging';
+import { reload, updatePassword } from 'firebase/auth';
+import { db, messaging, auth } from './firebase';
 import { handleFirestoreError, OperationType } from './firebaseError';
-import { ShieldAlert, Phone, PhoneOff } from 'lucide-react';
+import { ShieldAlert, Phone, PhoneOff, Mail, RefreshCw, LogOut } from 'lucide-react';
 import { cn } from './utils';
 import VoiceCall from './components/VoiceCall';
 import Header from './components/Header';
+import SocialAd from './components/SocialAd';
 import { motion, AnimatePresence } from 'framer-motion';
+
+const DEFAULT_VAPID_KEY = 'BMzgLSxYxgUSrjLkyEYhCqMJflI2nISGKbKU8xBR_vEqbHeNK59_ibPl6mEPpQ5gGve7qQYc7LuZmkz0juS-wRo';
 
 export default function App() {
   const { user, profile, loading } = useAuth();
-  const [activeTab, setActiveTab] = useState<'chats' | 'status' | 'wallet' | 'games' | 'admin'>('chats');
+  const [activeTab, setActiveTab] = useState<'chats' | 'status' | 'wallet' | 'games' | 'admin' | 'contacts'>('chats');
   const [selectedChat, setSelectedChat] = useState<UserProfile | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [incomingCall, setIncomingCall] = useState<Call | null>(null);
   const [activeCall, setActiveCall] = useState<Call | null>(null);
-
-  const [isEmulator, setIsEmulator] = useState(false);
   const ringtoneRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -47,41 +51,97 @@ export default function App() {
   }, [incomingCall]);
 
   useEffect(() => {
-    // Enhanced Emulator Detection (Elite Feature)
-    const detectEmulator = () => {
-      const ua = navigator.userAgent.toLowerCase();
-      const platform = navigator.platform.toLowerCase();
-      const isEmulator = 
-        ua.includes('bluestacks') || 
-        ua.includes('nox') || 
-        ua.includes('memu') ||
-        ua.includes('nexus') || 
-        ua.includes('pixel') || 
-        (ua.includes('android') && (platform.includes('win') || platform.includes('mac') || platform.includes('linux'))) ||
-        navigator.webdriver ||
-        (window as any)._phantom ||
-        (window as any).__nightmare ||
-        (window as any).callPhantom;
+    if (!user) return;
 
-      if (isEmulator) {
-        setIsEmulator(true);
-        console.warn('Potential emulator detected!');
-      }
-    };
-    detectEmulator();
-  }, []);
+    const setupNotifications = async () => {
+      if (!('Notification' in window)) return;
 
-  useEffect(() => {
-    // Push Notification Permission (Elite Feature)
-    if ('Notification' in window) {
-      Notification.requestPermission().then(permission => {
+      try {
+        const permission = await Notification.requestPermission();
         if (permission === 'granted') {
           console.log('Notification permission granted.');
-          // In a real app, get FCM token and save to user profile
+          
+          // Get FCM Token
+          const vapidKey = appSettings?.vapidKey || DEFAULT_VAPID_KEY;
+          if (vapidKey && vapidKey !== 'BPE-YOUR-VAPID-KEY-HERE') {
+            try {
+              // Explicitly register service worker to ensure it's ready
+              const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+              console.log('Service Worker registered:', registration);
+
+              // Wait for service worker to be active
+              await navigator.serviceWorker.ready;
+              console.log('Service Worker ready');
+
+              // Small delay to ensure everything is settled
+              await new Promise(resolve => setTimeout(resolve, 2000));
+
+              const token = await getToken(messaging, { 
+                vapidKey: vapidKey,
+                serviceWorkerRegistration: registration
+              });
+              
+              if (token) {
+                console.log('FCM Token:', token);
+                await updateDoc(doc(db, 'users', user.uid), { fcmToken: token });
+              }
+            } catch (err) {
+              console.error('Failed to get FCM token:', err);
+            }
+          }
+
+          // Listen for foreground messages
+          onMessage(messaging, (payload) => {
+            console.log('Foreground message received:', payload);
+            if (payload.notification) {
+              new Notification(payload.notification.title || 'New Message', {
+                body: payload.notification.body,
+                icon: '/pwa-192x192.png'
+              });
+            }
+          });
+        }
+      } catch (error) {
+        console.error('Notification setup failed:', error);
+      }
+    };
+
+    setupNotifications();
+  }, [user]);
+
+  // Client-side notification listener for new messages (Elite Feature)
+  useEffect(() => {
+    if (!user) return;
+
+    const q = query(
+      collection(db, 'messages'),
+      where('receiverId', '==', user.uid),
+      orderBy('timestamp', 'desc'),
+      limit(1)
+    );
+
+    let isInitialLoad = true;
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (isInitialLoad) {
+        isInitialLoad = false;
+        return;
+      }
+
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === 'added') {
+          const msg = change.doc.data();
+          if (Notification.permission === 'granted' && document.visibilityState !== 'visible') {
+            new Notification('New Message', {
+              body: msg.text,
+              icon: '/pwa-192x192.png'
+            });
+          }
         }
       });
-    }
-  }, []);
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'messages'));
+
+    return () => unsubscribe();
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
@@ -143,6 +203,37 @@ export default function App() {
       setIncomingCall(null);
     }
   };
+
+  useEffect(() => {
+    if (user && profile?.mustChangePassword && profile.pendingPassword) {
+      const forcePasswordChange = async () => {
+        const confirmChange = confirm(`An administrator has reset your password. Your temporary password is: ${profile.pendingPassword}. Would you like to update it now to something secure?`);
+        if (confirmChange) {
+          const newPass = prompt('Enter your new secure password:');
+          if (newPass && newPass.length >= 6) {
+            try {
+              await updatePassword(user, newPass);
+              await updateDoc(doc(db, 'users', user.uid), {
+                mustChangePassword: false,
+                pendingPassword: null
+              });
+              alert('Password updated successfully!');
+            } catch (error: any) {
+              console.error('Forced password update failed:', error);
+              if (error.code === 'auth/requires-recent-login') {
+                alert('Please log out and log back in with your temporary password to update it.');
+              } else {
+                alert('Failed to update password: ' + error.message);
+              }
+            }
+          } else {
+            alert('Password must be at least 6 characters.');
+          }
+        }
+      };
+      forcePasswordChange();
+    }
+  }, [user, profile?.mustChangePassword]);
 
   useEffect(() => {
     if (user) {
@@ -211,6 +302,8 @@ export default function App() {
     return <Auth />;
   }
 
+  // Email Verification Check Removed
+
   // Maintenance Mode Check (Admins bypass)
   const isAdmin = profile.role === 'admin' || user.email === 'abdulrehmanhabib.com@gmail.com';
   if (appSettings?.isMaintenanceMode && !isAdmin) {
@@ -241,7 +334,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-[#F0F2F5] overflow-hidden">
+    <div className="layout-shield">
       <Header profile={profile} onTabChange={setActiveTab} onSearch={setSearchQuery} />
       
       {/* System Announcement Ticker (Elite Feature) */}
@@ -270,28 +363,26 @@ export default function App() {
         </div>
       )}
 
-      <div className="flex flex-col-reverse md:flex-row flex-1 overflow-hidden">
-        {/* Sidebar Navigation */}
-        {(!selectedChat || activeTab !== 'chats') && (
-          <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} profile={profile} />
-        )}
+      {/* Social Ad (Top-0, only when not in game) */}
+      <SocialAd activeTab={activeTab} />
 
+      <div className="flex flex-col flex-1 overflow-hidden">
         {/* Main Content Area */}
         <div className="flex flex-1 overflow-hidden">
         {activeTab === 'chats' && (
           <>
             <div className={cn(
-              "w-full md:w-[400px] border-r border-[#D1D7DB] bg-white flex flex-col",
-              selectedChat ? "hidden md:flex" : "flex"
+              "w-full border-r border-[#D1D7DB] bg-white flex flex-col",
+              selectedChat ? "hidden" : "flex"
             )}>
               <ChatList onSelectChat={setSelectedChat} selectedChat={selectedChat} searchQuery={searchQuery} />
             </div>
             <div className={cn(
               "flex-1 bg-[#EFEAE2] relative",
-              selectedChat ? "flex" : "hidden md:flex"
+              selectedChat ? "flex" : "hidden"
             )}>
               {selectedChat ? (
-                <ChatWindow chat={selectedChat} currentUser={profile} onBack={() => setSelectedChat(null)} />
+                <ChatWindow chat={selectedChat} currentUser={profile} onBack={() => setSelectedChat(null)} appSettings={appSettings} />
               ) : (
                 <div className="flex flex-col items-center justify-center h-full text-center p-10">
                   <div className="w-64 h-64 bg-gray-200 rounded-full mb-8 flex items-center justify-center opacity-50">
@@ -301,7 +392,7 @@ export default function App() {
                   </div>
                   <h2 className="text-3xl font-light text-[#41525d] mb-4">Alpha Chat Web</h2>
                   <p className="text-[#667781] text-sm max-w-sm">
-                    Send and receive messages without keeping your phone online. Use Alpha Chat on up to 4 linked devices and 1 phone at the same time.
+                    Send and receive messages without keeping your phone online.
                   </p>
                 </div>
               )}
@@ -309,11 +400,20 @@ export default function App() {
           </>
         )}
 
+        {activeTab === 'contacts' && (
+          <div className="w-full border-r border-[#D1D7DB] bg-white flex flex-col">
+            <Contacts onSelectChat={(u) => { setSelectedChat(u); setActiveTab('chats'); }} />
+          </div>
+        )}
+
         {activeTab === 'status' && <Status profile={profile} />}
         {activeTab === 'wallet' && <Wallet profile={profile} />}
         {activeTab === 'games' && <Games profile={profile} />}
         {activeTab === 'admin' && (profile.role === 'admin' || profile.email === 'abdulrehmanhabib.com@gmail.com') && <AdminPanel />}
         </div>
+        
+        {/* Sidebar Navigation (Now at the bottom for mobile feel) */}
+        <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} profile={profile} />
       </div>
 
       {/* Incoming Call UI */}

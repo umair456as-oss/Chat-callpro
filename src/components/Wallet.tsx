@@ -103,7 +103,7 @@ export default function Wallet({ profile }: WalletProps) {
   };
 
   return (
-    <div className="flex-1 bg-[#F0F2F5] p-4 md:p-8 overflow-y-auto custom-scrollbar">
+    <div className="scrollable-content bg-[#F0F2F5] p-4 md:p-8 custom-scrollbar">
       <div className="max-w-4xl mx-auto space-y-6 md:space-y-8">
         <h1 className="text-2xl font-bold text-[#111B21] flex items-center gap-3">
           <WalletIcon className="text-[#00A884]" size={32} />

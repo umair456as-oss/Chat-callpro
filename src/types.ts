@@ -21,12 +21,15 @@ export interface UserProfile {
   deviceFingerprint?: string;
   clickCount?: number;
   lastClickTime?: number;
+  lastChatRewardTime?: number;
   badges?: string[];
+  fcmToken?: string;
 }
 
 export interface Message {
   id?: string;
   senderId: string;
+  senderName?: string;
   receiverId: string;
   text: string;
   timestamp: any;
@@ -76,7 +79,14 @@ export interface AppSettings {
   rewardMultiplier: number;
   minWithdrawal: number;
   adEarningRate: number;
+  chatRewardAmount: number;
   tickerText: string;
+  botName: string;
+  botAutoReplyEnabled: boolean;
+  botWelcomeMessage: string;
+  isAdMobEnabled: boolean;
+  isAdMobBannerEnabled: boolean;
+  vapidKey?: string;
 }
 
 export interface SupportTicket {

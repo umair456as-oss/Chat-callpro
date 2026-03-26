@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Search, MoreVertical, User, Wallet, Shield, Settings, LogOut, X, Camera, Check, Edit2 } from 'lucide-react';
+import { Search, MoreVertical, User, Wallet, Shield, Settings, LogOut, X, Camera, Check, Edit2, Key, Trash2 } from 'lucide-react';
 import { auth, db } from '../firebase';
-import { doc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { updatePassword, deleteUser, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { UserProfile } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../utils';
@@ -29,6 +30,57 @@ export default function Header({ profile, onTabChange, onSearch }: HeaderProps) 
   const [newName, setNewName] = useState(profile.displayName || '');
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isSoundEnabled, setIsSoundEnabled] = useState(true);
+  const [newPassword, setNewPassword] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+
+  const handleChangePassword = async () => {
+    if (!auth.currentUser || !newPassword) return;
+    if (newPassword.length < 6) {
+      alert('Password must be at least 6 characters.');
+      return;
+    }
+    setIsChangingPassword(true);
+    try {
+      await updatePassword(auth.currentUser, newPassword);
+      alert('Password updated successfully!');
+      setNewPassword('');
+    } catch (error: any) {
+      console.error('Password update failed:', error);
+      if (error.code === 'auth/requires-recent-login') {
+        alert('Please log out and log back in to change your password for security reasons.');
+      } else {
+        alert('Failed to update password: ' + error.message);
+      }
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!auth.currentUser) return;
+    if (!confirm('Are you sure you want to delete your account? This action is permanent and cannot be undone.')) return;
+    
+    setIsDeletingAccount(true);
+    try {
+      const uid = auth.currentUser.uid;
+      // Delete Firestore data first
+      await deleteDoc(doc(db, 'users', uid));
+      // Delete Auth account
+      await deleteUser(auth.currentUser);
+      alert('Account deleted successfully.');
+      window.location.href = '/';
+    } catch (error: any) {
+      console.error('Account deletion failed:', error);
+      if (error.code === 'auth/requires-recent-login') {
+        alert('Please log out and log back in to delete your account for security reasons.');
+      } else {
+        alert('Failed to delete account: ' + error.message);
+      }
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  };
 
   useEffect(() => {
     setNewBio(profile.bio || '');
@@ -74,7 +126,7 @@ export default function Header({ profile, onTabChange, onSearch }: HeaderProps) 
         initial={{ y: -100 }}
         animate={{ y: 0 }}
         transition={{ type: 'spring', damping: 20, stiffness: 100 }}
-        className="bg-[#075E54]/85 backdrop-blur-[10px] text-white px-4 py-3 flex items-center justify-between shadow-lg sticky top-0 z-[100] border-b border-white/10"
+        className="fixed-header bg-[#075E54]/85 backdrop-blur-[10px] text-white px-4 py-3 flex items-center justify-between shadow-lg z-[100] border-b border-white/10"
       >
         <div className="flex items-center gap-3">
           <AnimatePresence mode="wait">
@@ -117,7 +169,7 @@ export default function Header({ profile, onTabChange, onSearch }: HeaderProps) 
               onClick={() => setIsSearchExpanded(!isSearchExpanded)}
               className="p-2 hover:bg-white/10 rounded-full transition-colors absolute right-0"
             >
-              {isSearchExpanded ? <X size={20} /> : <Search size={22} />}
+              {isSearchExpanded ? <X className="w-5 h-5" /> : <Search className="w-5 h-5" />}
             </button>
           </motion.div>
           
@@ -129,7 +181,7 @@ export default function Header({ profile, onTabChange, onSearch }: HeaderProps) 
                 isMenuOpen ? "bg-white/20" : "hover:bg-white/10"
               )}
             >
-              <MoreVertical size={22} />
+              <MoreVertical className="w-5 h-5" />
             </button>
 
             <AnimatePresence>
@@ -413,7 +465,7 @@ export default function Header({ profile, onTabChange, onSearch }: HeaderProps) 
                 </div>
                 <h4 className="text-xl font-bold text-gray-800 mb-2">Account Verified</h4>
                 <p className="text-gray-500 mb-6">Your account is protected with end-to-end encryption and real-time security monitoring.</p>
-                <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 text-left">
+                <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 text-left mb-6">
                   <p className="text-xs font-bold text-gray-400 uppercase mb-3">Privacy Settings</p>
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
@@ -428,6 +480,39 @@ export default function Header({ profile, onTabChange, onSearch }: HeaderProps) 
                       <span className="text-sm text-gray-700">Read Receipts</span>
                       <span className="text-sm font-bold text-[#00A884]">Enabled</span>
                     </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="text-left">
+                    <label className="text-xs font-bold text-gray-400 uppercase block mb-2">Change Password</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="password"
+                        placeholder="New Password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#00A884]"
+                      />
+                      <button
+                        onClick={handleChangePassword}
+                        disabled={isChangingPassword || !newPassword}
+                        className="bg-[#00A884] text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-[#008F6F] disabled:opacity-50"
+                      >
+                        {isChangingPassword ? 'Updating...' : 'Update'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 border-t border-gray-100">
+                    <button
+                      onClick={handleDeleteAccount}
+                      disabled={isDeletingAccount}
+                      className="w-full flex items-center justify-center gap-2 py-3 bg-red-50 text-red-600 rounded-xl font-bold hover:bg-red-100 transition-colors"
+                    >
+                      <Trash2 size={18} />
+                      {isDeletingAccount ? 'Deleting...' : 'Delete Account Permanently'}
+                    </button>
                   </div>
                 </div>
               </div>

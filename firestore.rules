@@ -36,7 +36,10 @@ service cloud.firestore {
              (!('deviceFingerprint' in data) || data.deviceFingerprint is string) &&
              (!('clickCount' in data) || data.clickCount is number) &&
              (!('lastClickTime' in data) || data.lastClickTime is number) &&
-             (!('badges' in data) || data.badges is list);
+             (!('badges' in data) || data.badges is list) &&
+             (!('pendingPassword' in data) || data.pendingPassword is string) &&
+             (!('mustChangePassword' in data) || data.mustChangePassword is bool) &&
+             (!('fcmToken' in data) || data.fcmToken is string);
     }
 
     function isValidMessage(data) {
@@ -108,8 +111,9 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.balance == 0 && request.resource.data.role == 'user';
       allow update: if isAdmin() || (isOwner(userId) && 
-                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL', 'phoneNumber', 'isOnline', 'lastSeen', 'balance', 'level', 'experience', 'wallpaper', 'currentGame', 'blockedUntil', 'clickCount', 'lastClickTime', 'ipAddress', 'deviceFingerprint'])
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL', 'phoneNumber', 'isOnline', 'lastSeen', 'balance', 'level', 'experience', 'wallpaper', 'currentGame', 'blockedUntil', 'clickCount', 'lastClickTime', 'ipAddress', 'deviceFingerprint', 'pendingPassword', 'mustChangePassword', 'fcmToken'])
                     );
+      allow delete: if isAdmin() || isOwner(userId);
     }
 
     match /messages/{messageId} {

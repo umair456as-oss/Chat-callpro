@@ -11,14 +11,17 @@ interface AdResetterProps {
 export default function AdResetter({ gameSessionId }: AdResetterProps) {
   const [isSocialAdsEnabled, setIsSocialAdsEnabled] = useState(false);
   const [isBannerAdsEnabled, setIsBannerAdsEnabled] = useState(false);
+  const [isAdMobBannerEnabled, setIsAdMobBannerEnabled] = useState(false);
   const [adTimer, setAdTimer] = useState(1.3);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isDismissed, setIsDismissed] = useState(false);
   const [timeLeft, setTimeLeft] = useState(1.3);
+  const [adType, setAdType] = useState<'adsterra' | 'admob'>('adsterra');
   
   const bannerContainerRef = useRef<HTMLDivElement>(null);
   const socialScriptRef = useRef<HTMLScriptElement | null>(null);
   const bannerScriptsRef = useRef<HTMLScriptElement[]>([]);
+  const admobSlotRef = useRef<any>(null);
 
   // 1. Listen to Admin Settings
   useEffect(() => {
@@ -27,6 +30,7 @@ export default function AdResetter({ gameSessionId }: AdResetterProps) {
         const data = docSnap.data();
         setIsSocialAdsEnabled(data.isSocialAdsEnabled === true);
         setIsBannerAdsEnabled(data.isAdsEnabled === true);
+        setIsAdMobBannerEnabled(data.isAdMobBannerEnabled === true);
         if (data.adTimer !== undefined) {
           setAdTimer(data.adTimer);
           setTimeLeft(data.adTimer);
@@ -51,6 +55,16 @@ export default function AdResetter({ gameSessionId }: AdResetterProps) {
       // Cleanup old ads
       cleanupSocialAd();
       cleanupBannerAd();
+      cleanupAdMobBanner();
+
+      // Decide which ad to show if both are enabled
+      if (isBannerAdsEnabled && isAdMobBannerEnabled) {
+        setAdType(Math.random() > 0.5 ? 'admob' : 'adsterra');
+      } else if (isAdMobBannerEnabled) {
+        setAdType('admob');
+      } else {
+        setAdType('adsterra');
+      }
 
       // Wait 500ms to clear browser cache and show loading
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -59,22 +73,37 @@ export default function AdResetter({ gameSessionId }: AdResetterProps) {
       
       // Re-inject ads if enabled
       if (isSocialAdsEnabled) injectSocialAd();
-      if (isBannerAdsEnabled) injectBannerAd();
+      
+      if (isBannerAdsEnabled && isAdMobBannerEnabled) {
+        // Already set adType randomly
+      } else if (isAdMobBannerEnabled) {
+        setAdType('admob');
+      } else if (isBannerAdsEnabled) {
+        setAdType('adsterra');
+      }
     };
 
     refreshAds();
-  }, [gameSessionId]);
+  }, [gameSessionId, isBannerAdsEnabled, isAdMobBannerEnabled]);
 
-  // Initial load
+  // Initial load and adType change
   useEffect(() => {
+    if (isRefreshing) return;
+
     if (isSocialAdsEnabled) injectSocialAd();
-    if (isBannerAdsEnabled) injectBannerAd();
+    
+    if (adType === 'admob' && isAdMobBannerEnabled) {
+      injectAdMobBanner();
+    } else if (adType === 'adsterra' && isBannerAdsEnabled) {
+      injectBannerAd();
+    }
     
     return () => {
       cleanupSocialAd();
       cleanupBannerAd();
+      cleanupAdMobBanner();
     };
-  }, [isSocialAdsEnabled, isBannerAdsEnabled]);
+  }, [isSocialAdsEnabled, isBannerAdsEnabled, isAdMobBannerEnabled, adType, isRefreshing]);
 
   const injectSocialAd = () => {
     if (document.getElementById('adsterra-social-script')) return;
@@ -92,7 +121,6 @@ export default function AdResetter({ gameSessionId }: AdResetterProps) {
     if (existing) existing.remove();
     socialScriptRef.current = null;
     
-    // Adsterra social bar often leaves behind a div or style
     const socialBar = document.querySelector('div[id^="at-cv-"]');
     if (socialBar) socialBar.remove();
   };
@@ -128,9 +156,46 @@ export default function AdResetter({ gameSessionId }: AdResetterProps) {
     bannerScriptsRef.current = [];
   };
 
+  const injectAdMobBanner = () => {
+    if (!bannerContainerRef.current) return;
+    const googletag = (window as any).googletag;
+    if (!googletag) return;
+
+    googletag.cmd.push(() => {
+      const adUnitPath = '/5355571256728358/2975548740';
+      const slotId = 'admob-banner-slot';
+      
+      const adDiv = document.createElement('div');
+      adDiv.id = slotId;
+      adDiv.style.width = '300px';
+      adDiv.style.height = '250px';
+      bannerContainerRef.current?.appendChild(adDiv);
+
+      admobSlotRef.current = googletag.defineSlot(adUnitPath, [300, 250], slotId)
+        .addService(googletag.pubads());
+      
+      googletag.enableServices();
+      googletag.display(slotId);
+    });
+  };
+
+  const cleanupAdMobBanner = () => {
+    const googletag = (window as any).googletag;
+    if (googletag && admobSlotRef.current) {
+      googletag.cmd.push(() => {
+        googletag.destroySlots([admobSlotRef.current]);
+        admobSlotRef.current = null;
+      });
+    }
+    if (bannerContainerRef.current) {
+      bannerContainerRef.current.innerHTML = '';
+    }
+  };
+
   // 3. Timer Logic for Banner Ad
   useEffect(() => {
-    if (!isBannerAdsEnabled || isDismissed || isRefreshing) return;
+    const isAnyBannerEnabled = isBannerAdsEnabled || isAdMobBannerEnabled;
+    if (!isAnyBannerEnabled || isDismissed || isRefreshing) return;
 
     const interval = setInterval(() => {
       setTimeLeft((prev) => {
@@ -144,7 +209,7 @@ export default function AdResetter({ gameSessionId }: AdResetterProps) {
     }, 100);
 
     return () => clearInterval(interval);
-  }, [isBannerAdsEnabled, isDismissed, isRefreshing]);
+  }, [isBannerAdsEnabled, isAdMobBannerEnabled, isDismissed, isRefreshing]);
 
   if (isRefreshing) {
     return (
@@ -157,30 +222,27 @@ export default function AdResetter({ gameSessionId }: AdResetterProps) {
     );
   }
 
-  if (!isBannerAdsEnabled || isDismissed) return null;
+  const isAnyBannerEnabled = isBannerAdsEnabled || isAdMobBannerEnabled;
+  if (!isAnyBannerEnabled || isDismissed) return null;
 
   return (
-    <div className="absolute inset-0 z-[999] bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center rounded-2xl">
-      <div className="flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-300">
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-white/70 uppercase tracking-widest font-medium">
+    <div className="absolute bottom-0 left-0 right-0 z-[999] bg-black/80 backdrop-blur-md flex flex-col items-center justify-center p-4 rounded-b-2xl border-t border-white/10">
+      <div className="flex flex-col items-center gap-2 animate-in slide-in-from-bottom duration-300">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-[10px] text-white/70 uppercase tracking-widest font-medium">
             Sponsored Ad
           </span>
-          <div className="bg-blue-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg border border-blue-400 animate-pulse">
+          <div className="bg-blue-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg border border-blue-400">
             {timeLeft.toFixed(1)}s
           </div>
         </div>
         
         <div 
           ref={bannerContainerRef}
-          className="w-[300px] h-[250px] bg-white rounded-xl overflow-hidden shadow-2xl border-4 border-white/10"
+          className="w-[300px] h-[250px] bg-white rounded-lg overflow-hidden shadow-2xl border-2 border-white/10"
         >
           {/* Adsterra banner will be injected here */}
         </div>
-
-        <p className="text-white/50 text-[10px] mt-2">
-          Game will resume automatically after the ad
-        </p>
       </div>
     </div>
   );

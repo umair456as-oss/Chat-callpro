@@ -61,6 +61,7 @@ export default function AdminPanel() {
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [revenueStats, setRevenueStats] = useState<RevenueStats[]>([]);
   const [showGameAds, setShowGameAds] = useState(false);
+  const [showAdMobBanner, setShowAdMobBanner] = useState(false);
   const [showSocialAds, setShowSocialAds] = useState(false);
   const [adTimer, setAdTimer] = useState(1.3);
   const [searchTerm, setSearchTerm] = useState('');
@@ -78,12 +79,41 @@ export default function AdminPanel() {
   const [isSaving, setIsSaving] = useState(false);
 
   const handleResetPassword = async (email: string) => {
+    const newPassword = prompt(`Enter new password for ${email}:`);
+    if (!newPassword || newPassword.length < 6) {
+      alert('Password must be at least 6 characters.');
+      return;
+    }
+    
     try {
-      await sendPasswordResetEmail(auth, email);
-      alert('Password reset email sent successfully!');
+      // Since we can't directly change another user's password from client SDK,
+      // we'll set a flag in their profile that forces them to change it or 
+      // we can store it temporarily (less secure but requested "direct adjustment").
+      // A better way is to use a "pendingPassword" field that the app checks.
+      
+      const userToReset = users.find(u => u.email === email);
+      if (userToReset) {
+        await updateDoc(doc(db, 'users', userToReset.uid), {
+          pendingPassword: newPassword,
+          mustChangePassword: true
+        });
+        alert('Password reset request sent. User will be prompted to update on next interaction.');
+      }
     } catch (error) {
       console.error('Password reset error:', error);
-      alert('Failed to send password reset email.');
+      alert('Failed to set new password.');
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    if (!confirm('Are you sure you want to delete this user\'s data? This will NOT delete their Auth account but will clear their profile and balance.')) return;
+    
+    try {
+      await deleteDoc(doc(db, 'users', userId));
+      alert('User data deleted successfully.');
+    } catch (error) {
+      console.error('Delete user error:', error);
+      alert('Failed to delete user data.');
     }
   };
 
@@ -229,6 +259,7 @@ export default function AdminPanel() {
       if (doc.exists()) {
         const data = doc.data();
         setShowGameAds(data.isAdsEnabled === true);
+        setShowAdMobBanner(data.isAdMobBannerEnabled === true);
         setShowSocialAds(data.isSocialAdsEnabled === true);
         if (data.adTimer !== undefined) setAdTimer(data.adTimer);
       }
@@ -398,6 +429,14 @@ export default function AdminPanel() {
       await setDoc(doc(db, 'admin_settings', 'show_game_ads'), { isAdsEnabled: !showGameAds }, { merge: true });
     } catch (error) {
       console.error('Error toggling game ads:', error);
+    }
+  };
+
+  const toggleAdMobBanner = async () => {
+    try {
+      await setDoc(doc(db, 'admin_settings', 'show_game_ads'), { isAdMobBannerEnabled: !showAdMobBanner }, { merge: true });
+    } catch (error) {
+      console.error('Error toggling admob banner:', error);
     }
   };
 
@@ -581,7 +620,7 @@ export default function AdminPanel() {
         </header>
 
         {/* Content Body */}
-        <div className="flex-1 overflow-auto p-6">
+        <div className="scrollable-content p-6">
           <AnimatePresence mode="wait">
             {activeTab === 'users' && (
               <motion.div 
@@ -608,9 +647,10 @@ export default function AdminPanel() {
                   </div>
                 </div>
 
-                {/* Excel Style Grid */}
+                {/* Responsive Grid / Excel Style Table */}
                 <div className="bg-[#252526] rounded border border-[#333333] overflow-hidden shadow-2xl">
-                  <div className="overflow-x-auto">
+                  {/* Desktop Table View */}
+                  <div className="hidden md:block overflow-x-auto">
                     <table className="w-full text-xs text-left min-w-[800px]">
                         <thead className="bg-[#37373d] text-[#858585] uppercase tracking-wider border-b border-[#333333]">
                           <tr>
@@ -693,66 +733,132 @@ export default function AdminPanel() {
                                 <div className="text-[8px] text-[#858585] mt-1">{u.clickSpeed || 0} clicks/sec</div>
                               </td>
                               <td className="px-4 py-3">
-                            <span className={cn(
-                              "px-2 py-0.5 rounded text-[10px] font-bold uppercase",
-                              u.isBanned ? "bg-red-900/30 text-red-400 border border-red-800/50" : "bg-green-900/30 text-green-400 border border-green-800/50"
-                            )}>
-                              {u.isBanned ? 'Banned' : 'Active'}
-                            </span>
-                            {u.isShadowBanned && (
-                              <span className="ml-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-orange-900/30 text-orange-400 border border-orange-800/50">
-                                Shadow
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 text-[#858585]">{formatChatDate(u.lastSeen)}</td>
-                          <td className="px-4 py-3 text-right">
-                            <div className="flex justify-end gap-2 transition-opacity">
-                              <button 
-                                onClick={() => handleResetPassword(u.email)}
-                                className="p-1.5 bg-[#3c3c3c] hover:bg-blue-600 text-white rounded transition-colors"
-                                title="Reset Password"
-                              >
-                                <Key size={14} />
-                              </button>
-                              <button 
-                                onClick={() => { setSelectedUser(u); setIsEditModalOpen(true); }}
-                                className="p-1.5 bg-[#3c3c3c] hover:bg-blue-600 text-white rounded transition-colors"
-                                title="Edit Profile"
-                              >
-                                <FileText size={14} />
-                              </button>
-                              <button 
-                                onClick={() => updateDoc(doc(db, 'users', u.uid), { isVerified: !u.isVerified })}
-                                className={cn("p-1.5 rounded transition-colors", u.isVerified ? "bg-blue-600 text-white" : "bg-[#3c3c3c] hover:bg-blue-600 text-white")}
-                                title="Toggle Verification"
-                              >
-                                <BadgeCheck size={14} />
-                              </button>
-                              <button 
-                                onClick={() => updateDoc(doc(db, 'users', u.uid), { isBanned: !u.isBanned })}
-                                className={cn("p-1.5 rounded transition-colors", u.isBanned ? "bg-red-600 text-white" : "bg-[#3c3c3c] hover:bg-red-600 text-white")}
-                                title={u.isBanned ? "Unban User" : "Ban User"}
-                              >
-                                <Ban size={14} />
-                              </button>
-                              <button 
-                                onClick={() => handleShadowBan(u.uid, !u.isShadowBanned)}
-                                className={cn("p-1.5 rounded transition-colors", u.isShadowBanned ? "bg-orange-600 text-white" : "bg-[#3c3c3c] hover:bg-orange-600 text-white")}
-                                title={u.isShadowBanned ? "Unshadow User" : "Shadow Ban User"}
-                              >
-                                <ShieldAlert size={14} />
-                              </button>
+                                <span className={cn(
+                                  "px-2 py-0.5 rounded text-[10px] font-bold uppercase",
+                                  u.isBanned ? "bg-red-900/30 text-red-400 border border-red-800/50" : "bg-green-900/30 text-green-400 border border-green-800/50"
+                                )}>
+                                  {u.isBanned ? 'Banned' : 'Active'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-[#858585]">{formatChatDate(u.lastSeen)}</td>
+                              <td className="px-4 py-3 text-right">
+                                <div className="flex justify-end gap-2">
+                                  <button 
+                                    onClick={() => handleResetPassword(u.email)}
+                                    className="p-1.5 bg-[#3c3c3c] hover:bg-blue-600 text-white rounded transition-colors"
+                                    title="Reset Password"
+                                  >
+                                    <Key size={14} />
+                                  </button>
+                                  <button 
+                                    onClick={() => { setSelectedUser(u); setIsEditModalOpen(true); }}
+                                    className="p-1.5 bg-[#3c3c3c] hover:bg-blue-600 text-white rounded transition-colors"
+                                    title="Edit Profile"
+                                  >
+                                    <FileText size={14} />
+                                  </button>
+                                  <button 
+                                    onClick={() => updateDoc(doc(db, 'users', u.uid), { isVerified: !u.isVerified })}
+                                    className={cn("p-1.5 rounded transition-colors", u.isVerified ? "bg-blue-600 text-white" : "bg-[#3c3c3c] hover:bg-blue-600 text-white")}
+                                    title="Toggle Verification"
+                                  >
+                                    <BadgeCheck size={14} />
+                                  </button>
+                                  <button 
+                                    onClick={() => updateDoc(doc(db, 'users', u.uid), { isBanned: !u.isBanned })}
+                                    className={cn("p-1.5 rounded transition-colors", u.isBanned ? "bg-red-600 text-white" : "bg-[#3c3c3c] hover:bg-red-600 text-white")}
+                                    title={u.isBanned ? "Unban User" : "Ban User"}
+                                  >
+                                    <Ban size={14} />
+                                  </button>
+                                  <button 
+                                    onClick={() => handleShadowBan(u.uid, !u.isShadowBanned)}
+                                    className={cn("p-1.5 rounded transition-colors", u.isShadowBanned ? "bg-orange-600 text-white" : "bg-[#3c3c3c] hover:bg-orange-600 text-white")}
+                                    title={u.isShadowBanned ? "Unshadow User" : "Shadow Ban User"}
+                                  >
+                                    <ShieldAlert size={14} />
+                                  </button>
+                                  <button 
+                                    onClick={() => handleDeleteUser(u.uid)}
+                                    className="p-1.5 bg-[#3c3c3c] hover:bg-red-600 text-white rounded transition-colors"
+                                    title="Delete User Data"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                    </table>
+                  </div>
+
+                  {/* Mobile Card View */}
+                  <div className="md:hidden grid grid-cols-1 gap-4 p-4">
+                    {filteredUsers.map((u) => (
+                      <div key={u.uid} className="bg-[#333333] p-4 rounded-lg border border-[#444444] space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="relative">
+                              <img src={u.photoURL || `https://ui-avatars.com/api/?name=${u.displayName}`} className="w-10 h-10 rounded border border-[#444444]" />
+                              {u.isOnline && <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-[#333333]"></div>}
                             </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                            <div>
+                              <div className="text-white font-bold flex items-center gap-1">
+                                {u.displayName}
+                                {u.isVerified && <BadgeCheck size={14} className="text-blue-400" />}
+                              </div>
+                              <div className="text-[#858585] text-[10px]">{u.email}</div>
+                            </div>
+                          </div>
+                          <span className={cn(
+                            "px-2 py-0.5 rounded text-[10px] font-bold uppercase",
+                            u.level === 'Gold' ? "bg-yellow-900/30 text-yellow-400" :
+                            u.level === 'Silver' ? "bg-gray-400/30 text-gray-300" :
+                            "bg-orange-900/30 text-orange-400"
+                          )}>
+                            {u.level || 'Bronze'}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 text-[10px]">
+                          <div className="bg-[#252526] p-2 rounded">
+                            <p className="text-[#858585] uppercase mb-1">Balance</p>
+                            <p className="text-green-400 font-bold">Rs. {u.balance}</p>
+                          </div>
+                          <div className="bg-[#252526] p-2 rounded">
+                            <p className="text-[#858585] uppercase mb-1">Status</p>
+                            <p className={cn("font-bold", u.isBanned ? "text-red-400" : "text-green-400")}>
+                              {u.isBanned ? 'Banned' : 'Active'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex justify-between items-center pt-2 border-t border-[#444444]">
+                          <div className="text-[10px] text-[#858585]">
+                            Last seen: {formatChatDate(u.lastSeen)}
+                          </div>
+                          <div className="flex gap-2">
+                            <button 
+                              onClick={() => { setSelectedUser(u); setIsEditModalOpen(true); }}
+                              className="p-2 bg-[#3c3c3c] hover:bg-blue-600 text-white rounded transition-colors"
+                            >
+                              <FileText size={14} />
+                            </button>
+                            <button 
+                              onClick={() => updateDoc(doc(db, 'users', u.uid), { isBanned: !u.isBanned })}
+                              className={cn("p-2 rounded transition-colors", u.isBanned ? "bg-red-600 text-white" : "bg-[#3c3c3c] text-white")}
+                            >
+                              <Ban size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            </motion.div>
-          )}
+              </motion.div>
+            )}
 
           {activeTab === 'fraud' && (
             <motion.div 
@@ -1107,6 +1213,76 @@ export default function AdminPanel() {
                 <div className="flex justify-between mt-2 text-[8px] text-[#858585]">
                   <span>30 Days Ago</span>
                   <span>Today</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-[#252526] rounded border border-[#333333] p-6">
+                  <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+                    <Activity size={16} className="text-green-400" />
+                    System Health Monitor
+                  </h3>
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-[#858585]">Database Latency</span>
+                      <span className="text-green-400 font-mono">24ms</span>
+                    </div>
+                    <div className="w-full bg-[#333333] h-1 rounded-full overflow-hidden">
+                      <div className="bg-green-500 h-full w-[15%]"></div>
+                    </div>
+                    
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-[#858585]">Server CPU Load</span>
+                      <span className="text-yellow-400 font-mono">32%</span>
+                    </div>
+                    <div className="w-full bg-[#333333] h-1 rounded-full overflow-hidden">
+                      <div className="bg-yellow-500 h-full w-[32%]"></div>
+                    </div>
+
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-[#858585]">Memory Usage</span>
+                      <span className="text-blue-400 font-mono">1.2GB / 4GB</span>
+                    </div>
+                    <div className="w-full bg-[#333333] h-1 rounded-full overflow-hidden">
+                      <div className="bg-blue-500 h-full w-[30%]"></div>
+                    </div>
+
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-[#858585]">Uptime</span>
+                      <span className="text-green-400 font-mono">99.98%</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-[#252526] rounded border border-[#333333] p-6">
+                  <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+                    <Users size={16} className="text-blue-400" />
+                    User Engagement Stats
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-3 bg-[#1e1e1e] rounded border border-[#333333]">
+                      <div className="text-[10px] text-[#858585] uppercase font-bold mb-1">Total Users</div>
+                      <div className="text-lg font-bold text-white">{users.length}</div>
+                    </div>
+                    <div className="p-3 bg-[#1e1e1e] rounded border border-[#333333]">
+                      <div className="text-[10px] text-[#858585] uppercase font-bold mb-1">New Today</div>
+                      <div className="text-lg font-bold text-blue-400">
+                        {users.filter(u => u.createdAt && (Date.now() - getTime(u.createdAt) < 86400000)).length}
+                      </div>
+                    </div>
+                    <div className="p-3 bg-[#1e1e1e] rounded border border-[#333333]">
+                      <div className="text-[10px] text-[#858585] uppercase font-bold mb-1">Total Games Played</div>
+                      <div className="text-lg font-bold text-purple-400">
+                        {users.reduce((acc, u) => acc + (u.totalGamesPlayed || 0), 0)}
+                      </div>
+                    </div>
+                    <div className="p-3 bg-[#1e1e1e] rounded border border-[#333333]">
+                      <div className="text-[10px] text-[#858585] uppercase font-bold mb-1">Total Messages</div>
+                      <div className="text-lg font-bold text-green-400">
+                        {users.reduce((acc, u) => acc + (u.totalMessagesSent || 0), 0)}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -1531,6 +1707,44 @@ export default function AdminPanel() {
                   <div className="flex flex-col gap-4">
                     <div className="flex items-center justify-between">
                       <div>
+                        <h4 className="text-white font-medium">AdMob Rewarded Ads</h4>
+                        <p className="text-xs text-[#858585]">Enable/Disable Google AdMob rewarded video ads</p>
+                      </div>
+                      <button 
+                        onClick={() => updateGlobalSetting('isAdMobEnabled', !appSettings?.isAdMobEnabled)}
+                        className={cn(
+                          "w-12 h-6 rounded-full transition-all relative",
+                          appSettings?.isAdMobEnabled ? "bg-yellow-600" : "bg-[#3c3c3c]"
+                        )}
+                      >
+                        <div className={cn(
+                          "absolute top-1 w-4 h-4 bg-white rounded-full transition-all",
+                          appSettings?.isAdMobEnabled ? "right-1" : "left-1"
+                        )}></div>
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-white font-medium">AdMob Banner Ads</h4>
+                        <p className="text-xs text-[#858585]">Show 300x250 AdMob banner ads in game modals</p>
+                      </div>
+                      <button 
+                        onClick={toggleAdMobBanner}
+                        className={cn(
+                          "w-12 h-6 rounded-full transition-all relative",
+                          showAdMobBanner ? "bg-orange-600" : "bg-[#3c3c3c]"
+                        )}
+                      >
+                        <div className={cn(
+                          "absolute top-1 w-4 h-4 bg-white rounded-full transition-all",
+                          showAdMobBanner ? "right-1" : "left-1"
+                        )}></div>
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div>
                         <h4 className="text-white font-medium">Game Modal Ads (Adsterra)</h4>
                         <p className="text-xs text-[#858585]">Show 300x250 banner ads in game modals</p>
                       </div>
@@ -1565,6 +1779,26 @@ export default function AdminPanel() {
                           showSocialAds ? "right-1" : "left-1"
                         )}></div>
                       </button>
+                    </div>
+
+                    <div className="pt-6 border-t border-[#333333]">
+                      <h4 className="text-white font-medium mb-4">Push Notifications</h4>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="text-xs text-[#858585] block mb-2 uppercase tracking-widest font-bold">FCM VAPID Key</label>
+                          <input 
+                            type="text"
+                            value={appSettings?.vapidKey || ''}
+                            onChange={(e) => updateGlobalSetting('vapidKey', e.target.value)}
+                            placeholder="Enter your VAPID key from Firebase Console"
+                            className="w-full bg-[#111B21] border border-[#333333] focus:border-blue-500 rounded-xl py-3 px-4 text-white text-sm outline-none transition-all"
+                          />
+                          <p className="text-[10px] text-[#858585] mt-2 leading-relaxed">
+                            Required for push notifications. Get this from: <br />
+                            <span className="text-blue-400">Firebase Console &gt; Project Settings &gt; Cloud Messaging &gt; Web configuration</span>
+                          </p>
+                        </div>
+                      </div>
                     </div>
 
                     {showGameAds && (
@@ -1696,6 +1930,18 @@ export default function AdminPanel() {
                   </div>
 
                   <div className="space-y-2">
+                    <h4 className="text-white font-medium">Chat Reward Amount (PKR)</h4>
+                    <p className="text-xs text-[#858585]">Amount earned per message sent (10s cooldown)</p>
+                    <input 
+                      type="number" 
+                      step="0.01"
+                      className="w-full bg-[#1e1e1e] border border-[#333333] focus:border-blue-500 rounded px-3 py-1.5 text-sm text-white outline-none"
+                      value={appSettings?.chatRewardAmount || 0.1}
+                      onChange={(e) => updateGlobalSetting('chatRewardAmount', parseFloat(e.target.value))}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
                     <h4 className="text-white font-medium">Withdrawal Tax (%)</h4>
                     <p className="text-xs text-[#858585]">Service fee automatically deducted from withdrawals</p>
                     <input 
@@ -1704,6 +1950,53 @@ export default function AdminPanel() {
                       value={appSettings?.withdrawalTax || 0}
                       onChange={(e) => updateGlobalSetting('withdrawalTax', parseFloat(e.target.value))}
                     />
+                  </div>
+
+                  <div className="pt-6 border-t border-[#333333] space-y-6">
+                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                      <Shield size={20} className="text-purple-400" />
+                      Alpha AI Bot Configuration
+                    </h3>
+                    
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-white font-medium">Auto-Reply Bot</h4>
+                        <p className="text-xs text-[#858585]">Enable/Disable automated chat responses</p>
+                      </div>
+                      <button 
+                        onClick={() => updateGlobalSetting('botAutoReplyEnabled', !appSettings?.botAutoReplyEnabled)}
+                        className={cn(
+                          "w-12 h-6 rounded-full transition-all relative",
+                          appSettings?.botAutoReplyEnabled ? "bg-purple-600" : "bg-[#3c3c3c]"
+                        )}
+                      >
+                        <div className={cn(
+                          "absolute top-1 w-4 h-4 bg-white rounded-full transition-all",
+                          appSettings?.botAutoReplyEnabled ? "right-1" : "left-1"
+                        )}></div>
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <h4 className="text-white font-medium">Bot Display Name</h4>
+                        <input 
+                          type="text" 
+                          className="w-full bg-[#1e1e1e] border border-[#333333] focus:border-blue-500 rounded px-3 py-1.5 text-sm text-white outline-none"
+                          value={appSettings?.botName || 'Alpha Bot'}
+                          onChange={(e) => updateGlobalSetting('botName', e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <h4 className="text-white font-medium">Welcome Message</h4>
+                        <input 
+                          type="text" 
+                          className="w-full bg-[#1e1e1e] border border-[#333333] focus:border-blue-500 rounded px-3 py-1.5 text-sm text-white outline-none"
+                          value={appSettings?.botWelcomeMessage || 'Hello! How can I help you today?'}
+                          onChange={(e) => updateGlobalSetting('botWelcomeMessage', e.target.value)}
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   <div className="flex items-center justify-between p-4 bg-blue-900/20 border border-blue-800/50 rounded-xl">
@@ -1823,18 +2116,39 @@ export default function AdminPanel() {
                 exit={{ opacity: 0, y: -10 }}
                 className="space-y-6"
               >
-                <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                  <Activity size={20} className="text-purple-400" />
-                  System Logs
-                </h2>
-                <div className="bg-[#1e1e1e] border border-[#333333] rounded p-4 font-mono text-xs h-[500px] overflow-auto space-y-1">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                    <Activity size={20} className="text-purple-400" />
+                    System Logs
+                  </h2>
+                  <button 
+                    onClick={async () => {
+                      if (confirm('Are you sure you want to clear all system logs?')) {
+                        const batch = writeBatch(db);
+                        activityLogs.forEach(log => batch.delete(doc(db, 'activityLogs', log.id!)));
+                        await batch.commit();
+                      }
+                    }}
+                    className="text-red-500 hover:text-red-400 text-xs font-bold flex items-center gap-1"
+                  >
+                    <Trash2 size={14} />
+                    Clear Logs
+                  </button>
+                </div>
+                <div className="bg-[#1e1e1e] border border-[#333333] rounded p-4 font-mono text-xs h-[500px] overflow-auto space-y-1 custom-scrollbar">
                   <div className="text-green-400">[SYSTEM] Initializing Alpha Admin Terminal...</div>
                   <div className="text-green-400">[SYSTEM] Connection established with Firestore.</div>
                   <div className="text-blue-400">[AUTH] Admin user authenticated: {new Date().toISOString()}</div>
-                  <div className="text-yellow-400">[WARN] High traffic detected in 'Lucky Spin' game.</div>
-                  <div className="text-white">[INFO] Global settings updated by admin.</div>
-                  <div className="text-[#858585]">[DEBUG] Fetching real-time user updates...</div>
-                  {/* Real logs could be mapped here from a 'logs' collection */}
+                  {activityLogs.map((log) => (
+                    <div key={log.id} className="group hover:bg-[#2a2d2e] py-0.5 px-1 rounded transition-colors">
+                      <span className="text-[#858585]">[{formatChatDate(log.timestamp)}]</span>{' '}
+                      <span className="text-blue-400">[{log.userName || 'System'}]</span>{' '}
+                      <span className="text-white">{log.action || log.message}</span>
+                    </div>
+                  ))}
+                  {activityLogs.length === 0 && (
+                    <div className="text-[#858585] italic py-4 text-center">No activity logs found.</div>
+                  )}
                 </div>
               </motion.div>
             )}

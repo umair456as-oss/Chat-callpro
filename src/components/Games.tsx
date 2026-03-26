@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   RotateCw, Calculator, Eraser, Calendar, Dices, 
   Type, ShieldCheck, Coins, LayoutGrid, PlayCircle,
-  Trophy, Star, Zap, Clock
+  Trophy, Star, Zap, Clock, XCircle
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { cn, toSafeDate } from '../utils';
@@ -216,7 +216,7 @@ export default function Games({ profile }: GamesProps) {
   ];
 
   return (
-    <div className="flex-1 bg-[#F0F2F5] p-4 md:p-8 overflow-y-auto custom-scrollbar">
+    <div className="scrollable-content bg-[#F0F2F5] p-4 md:p-8 custom-scrollbar">
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-8">
           <div>
@@ -911,48 +911,125 @@ function MemoryMatch({ onWin, loading, onRestart }: { onWin: (reward: number) =>
 
 function WatchEarn({ onWin, loading, onRestart }: { onWin: (reward: number) => void, loading: boolean, onRestart: () => void }) {
   const [watching, setWatching] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const [adReady, setAdReady] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
+  const rewardedSlotRef = useRef<any>(null);
 
   useEffect(() => {
-    if (progress >= 100 && watching) {
-      setWatching(false);
-      onWin(5);
-    }
-  }, [progress, watching, onWin]);
+    const unsub = onSnapshot(doc(db, 'settings', 'global'), (doc) => {
+      if (doc.exists()) setAppSettings(doc.data() as AppSettings);
+    });
+    return () => unsub();
+  }, []);
 
-  const start = () => {
-    if (watching || loading) return;
-    onRestart();
-    setWatching(true);
-    setProgress(0);
-    const interval = setInterval(() => {
-      setProgress(p => {
-        if (p >= 100) {
-          clearInterval(interval);
-          return 100;
+  useEffect(() => {
+    if (appSettings && !appSettings.isAdMobEnabled) {
+      setError("AdMob is currently disabled by administrator.");
+      return;
+    }
+
+    const googletag = (window as any).googletag;
+    if (!googletag) {
+      setError("Ad SDK not loaded. Please disable ad-blocker.");
+      return;
+    }
+
+    googletag.cmd.push(() => {
+      const adUnitPath = '/5355571256728358/6016645058';
+      
+      rewardedSlotRef.current = googletag.defineOutOfPageSlot(
+        adUnitPath,
+        googletag.enums.OutOfPageFormat.REWARDED
+      );
+
+      if (rewardedSlotRef.current) {
+        rewardedSlotRef.current.addService(googletag.pubads());
+
+        googletag.pubads().addEventListener('rewardedSlotReady', (event: any) => {
+          if (event.slot === rewardedSlotRef.current) {
+            setAdReady(true);
+          }
+        });
+
+        googletag.pubads().addEventListener('rewardedSlotGranted', (event: any) => {
+          if (event.slot === rewardedSlotRef.current) {
+            const rewardAmount = appSettings?.adEarningRate || 5;
+            onWin(rewardAmount);
+          }
+        });
+
+        googletag.pubads().addEventListener('rewardedSlotClosed', (event: any) => {
+          if (event.slot === rewardedSlotRef.current) {
+            setWatching(false);
+            setAdReady(false);
+            googletag.destroySlots([rewardedSlotRef.current]);
+            rewardedSlotRef.current = null;
+            onRestart();
+          }
+        });
+
+        googletag.enableServices();
+        googletag.display(rewardedSlotRef.current);
+      } else {
+        setError("Failed to initialize ad slot.");
+      }
+    });
+
+    return () => {
+      googletag.cmd.push(() => {
+        if (rewardedSlotRef.current) {
+          googletag.destroySlots([rewardedSlotRef.current]);
         }
-        return p + 1;
       });
-    }, 100);
+    };
+  }, [appSettings]);
+
+  const showAd = () => {
+    if (!adReady || watching || loading) return;
+    const googletag = (window as any).googletag;
+    googletag.cmd.push(() => {
+      googletag.pubads().refresh([rewardedSlotRef.current]);
+    });
+    setWatching(true);
   };
 
   return (
     <div className="text-center w-full max-w-md">
-      <div className="aspect-video bg-black rounded-3xl mb-8 flex items-center justify-center relative overflow-hidden group">
-        {!watching ? (
-          <button onClick={start} className="text-white hover:scale-110 transition-transform">
-            <PlayCircle size={80} />
-          </button>
+      <div className="aspect-video bg-black rounded-3xl mb-8 flex flex-col items-center justify-center relative overflow-hidden group p-6">
+        {error ? (
+          <div className="text-red-500 text-sm font-bold flex flex-col items-center gap-2">
+            <XCircle size={48} />
+            <p>{error}</p>
+          </div>
+        ) : !watching ? (
+          <div className="flex flex-col items-center gap-4">
+            <button 
+              onClick={showAd} 
+              disabled={!adReady || loading}
+              className={cn(
+                "text-white hover:scale-110 transition-transform flex flex-col items-center gap-3",
+                (!adReady || loading) && "opacity-50 cursor-not-allowed"
+              )}
+            >
+              <PlayCircle size={80} className={cn(adReady && "text-[#00A884] animate-pulse")} />
+              <span className="font-bold text-lg">{adReady ? 'Watch Ad to Earn' : 'Loading Ad...'}</span>
+            </button>
+          </div>
         ) : (
           <div className="text-white text-center">
-            <p className="text-sm font-bold mb-2">Watching Ad...</p>
-            <div className="w-64 h-2 bg-white/20 rounded-full overflow-hidden">
-              <div className="h-full bg-[#00A884] transition-all" style={{ width: `${progress}%` }}></div>
-            </div>
+            <div className="w-16 h-16 border-4 border-[#00A884] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-sm font-bold mb-2">Ad in Progress...</p>
           </div>
         )}
       </div>
-      <p className="text-[#667781] text-sm">Watch the full video to earn Rs. 5!</p>
+      <div className="bg-white/50 backdrop-blur-sm p-4 rounded-2xl border border-white/20 shadow-sm">
+        <div className="flex items-center justify-center gap-2 text-[#00A884] font-bold mb-1">
+          <Trophy size={16} />
+          <span>Reward: Rs. {(appSettings?.adEarningRate || 5).toFixed(2)}</span>
+        </div>
+        <p className="text-[#667781] text-[10px] uppercase tracking-tighter">Watch the full video to claim your reward</p>
+      </div>
     </div>
   );
 }
