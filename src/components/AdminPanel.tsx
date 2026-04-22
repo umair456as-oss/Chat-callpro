@@ -14,10 +14,10 @@ import {
   ChevronRight, LayoutGrid, List, BarChart3, Clock, 
   AlertCircle, Info, CheckCircle2, MoreVertical,
   ShieldAlert, MessageSquare, TrendingUp, Send, Database, Shield,
-  Key, Folder
+  Key, Folder, LogOut
 } from 'lucide-react';
 import { formatChatDate, cn, getTime, toSafeDate } from '../utils';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { handleFirestoreError, OperationType } from '../utils/errorHandlers';
 
 import Editor from 'react-simple-code-editor';
@@ -50,7 +50,11 @@ interface RevenueStats {
   totalPayouts: number;
 }
 
-export default function AdminPanel() {
+interface AdminPanelProps {
+  onExit?: () => void;
+}
+
+export default function AdminPanel({ onExit }: AdminPanelProps) {
   const [activeTab, setActiveTab] = useState<AdminTab>('users');
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -506,93 +510,93 @@ export default function AdminPanel() {
   }
 
   return (
-    <div className="flex flex-col md:flex-row h-full bg-[#1e1e1e] text-[#cccccc] font-mono overflow-hidden">
+    <div className="flex flex-row h-full bg-[#1e1e1e] text-[#cccccc] font-mono overflow-hidden w-full">
       {/* VS Code Style Sidebar */}
       <div 
         onWheel={handleSidebarWheel}
-        className="w-full md:w-14 bg-[#333333] flex flex-row md:flex-col items-center py-2 md:py-4 justify-around md:justify-start md:space-y-6 border-t md:border-t-0 md:border-r border-[#2b2b2b] z-20 order-last md:order-first touch-none"
+        className="w-14 bg-[#333333] flex flex-col items-center py-4 justify-start space-y-6 border-r border-[#2b2b2b] z-20 touch-none"
       >
         <button 
           onClick={() => setActiveTab('users')}
-          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'users' ? "text-white border-b-2 md:border-b-0 md:border-l-2 border-blue-500" : "text-[#858585] hover:text-white")}
+          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'users' ? "text-white border-l-2 border-blue-500" : "text-[#858585] hover:text-white")}
           title="Users Explorer"
         >
           <Users size={20} />
-          <span className="text-[8px] md:hidden">Users</span>
         </button>
         <button 
           onClick={() => setActiveTab('withdrawals')}
-          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'withdrawals' ? "text-white border-b-2 md:border-b-0 md:border-l-2 border-blue-500" : "text-[#858585] hover:text-white")}
+          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'withdrawals' ? "text-white border-l-2 border-blue-500" : "text-[#858585] hover:text-white")}
           title="Finance Grid"
         >
           <Wallet size={20} />
-          <span className="text-[8px] md:hidden">Finance</span>
         </button>
         <button 
           onClick={() => setActiveTab('games')}
-          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'games' ? "text-white border-b-2 md:border-b-0 md:border-l-2 border-blue-500" : "text-[#858585] hover:text-white")}
+          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'games' ? "text-white border-l-2 border-blue-500" : "text-[#858585] hover:text-white")}
           title="Game Management"
         >
           <Gamepad2 size={20} />
-          <span className="text-[8px] md:hidden">Games</span>
         </button>
         <button 
           onClick={() => setActiveTab('fraud')}
-          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'fraud' ? "text-white border-b-2 md:border-b-0 md:border-l-2 border-red-500" : "text-[#858585] hover:text-white")}
+          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'fraud' ? "text-white border-l-2 border-red-500" : "text-[#858585] hover:text-white")}
           title="Fraud Monitor"
         >
           <ShieldAlert size={20} />
-          <span className="text-[8px] md:hidden">Fraud</span>
         </button>
         <button 
           onClick={() => setActiveTab('support')}
-          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'support' ? "text-white border-b-2 md:border-b-0 md:border-l-2 border-emerald-500" : "text-[#858585] hover:text-white")}
+          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'support' ? "text-white border-l-2 border-emerald-500" : "text-[#858585] hover:text-white")}
           title="Live Support"
         >
           <MessageSquare size={20} />
-          <span className="text-[8px] md:hidden">Support</span>
         </button>
         <button 
           onClick={() => setActiveTab('analytics')}
-          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'analytics' ? "text-white border-b-2 md:border-b-0 md:border-l-2 border-blue-500" : "text-[#858585] hover:text-white")}
+          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'analytics' ? "text-white border-l-2 border-blue-500" : "text-[#858585] hover:text-white")}
           title="Analytics"
         >
           <TrendingUp size={20} />
-          <span className="text-[8px] md:hidden">Stats</span>
         </button>
         <button 
           onClick={() => setActiveTab('announcements')}
-          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'announcements' ? "text-white border-b-2 md:border-b-0 md:border-l-2 border-blue-500" : "text-[#858585] hover:text-white")}
+          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'announcements' ? "text-white border-l-2 border-blue-500" : "text-[#858585] hover:text-white")}
           title="Announcements"
         >
           <Bell size={20} />
-          <span className="text-[8px] md:hidden">Alerts</span>
         </button>
         <button 
           onClick={() => setActiveTab('settings')}
-          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'settings' ? "text-white border-b-2 md:border-b-0 md:border-l-2 border-blue-500" : "text-[#858585] hover:text-white")}
+          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'settings' ? "text-white border-l-2 border-blue-500" : "text-[#858585] hover:text-white")}
           title="Global Settings"
         >
           <Settings size={20} />
-          <span className="text-[8px] md:hidden">Config</span>
         </button>
         <button 
           onClick={() => setActiveTab('build')}
-          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'build' ? "text-white border-b-2 md:border-b-0 md:border-l-2 border-purple-500" : "text-[#858585] hover:text-white")}
+          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'build' ? "text-white border-l-2 border-purple-500" : "text-[#858585] hover:text-white")}
           title="Build System"
         >
           <Folder size={20} />
-          <span className="text-[8px] md:hidden">Build</span>
         </button>
-        <div className="md:mt-auto md:pb-4">
+        <div className="mt-auto pb-4 flex flex-col gap-4">
           <button 
             onClick={() => setActiveTab('logs')}
-            className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'logs' ? "text-white border-b-2 md:border-b-0 md:border-l-2 border-blue-500" : "text-[#858585] hover:text-white")}
+            className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'logs' ? "text-white border-l-2 border-blue-500" : "text-[#858585] hover:text-white")}
             title="System Logs"
           >
             <Activity size={20} />
-            <span className="text-[8px] md:hidden">Logs</span>
           </button>
+          {onExit && (
+            <button 
+              onClick={onExit}
+              className="p-2 text-red-500 hover:text-red-400 transition-colors flex flex-col items-center gap-1"
+              title="Exit Terminal"
+            >
+              <LogOut size={20} />
+              <span className="text-[10px] uppercase font-bold">Exit</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -630,12 +634,12 @@ export default function AdminPanel() {
                 exit={{ opacity: 0, y: -10 }}
                 className="space-y-6"
               >
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div className="flex flex-row justify-between items-center gap-4">
                   <h2 className="text-xl font-bold text-white flex items-center gap-2">
                     <Users size={20} className="text-blue-400" />
                     User Command Center
                   </h2>
-                  <div className="relative w-full md:w-72">
+                  <div className="relative w-72">
                     <input
                       type="text"
                       placeholder="Search by email, name, or phone..."
@@ -650,7 +654,7 @@ export default function AdminPanel() {
                 {/* Responsive Grid / Excel Style Table */}
                 <div className="bg-[#252526] rounded border border-[#333333] overflow-hidden shadow-2xl">
                   {/* Desktop Table View */}
-                  <div className="hidden md:block overflow-x-auto">
+                  <div className="block overflow-x-auto">
                     <table className="w-full text-xs text-left min-w-[800px]">
                         <thead className="bg-[#37373d] text-[#858585] uppercase tracking-wider border-b border-[#333333]">
                           <tr>
@@ -793,8 +797,8 @@ export default function AdminPanel() {
                     </table>
                   </div>
 
-                  {/* Mobile Card View */}
-                  <div className="md:hidden grid grid-cols-1 gap-4 p-4">
+                  {/* Mobile Card View (Hidden for Desktop View) */}
+                  <div className="hidden grid grid-cols-1 gap-4 p-4">
                     {filteredUsers.map((u) => (
                       <div key={u.uid} className="bg-[#333333] p-4 rounded-lg border border-[#444444] space-y-3">
                         <div className="flex items-center justify-between">
@@ -872,7 +876,7 @@ export default function AdminPanel() {
                 <ShieldAlert size={20} className="text-red-400" />
                 Fraud Detection Monitor
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div className="bg-[#252526] p-4 rounded border border-[#333333]">
                   <div className="text-[#858585] text-xs mb-1">High Risk (Clicks &gt; 50/s)</div>
                   <div className="text-2xl font-bold text-red-400">{users.filter(u => (u.clickCount || 0) > 50).length}</div>
@@ -937,7 +941,7 @@ export default function AdminPanel() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[600px]"
+              className="grid grid-cols-3 gap-6 h-[600px]"
             >
               <div className="bg-[#252526] rounded border border-[#333333] flex flex-col overflow-hidden">
                 <div className="p-3 bg-[#37373d] text-[#858585] text-[10px] font-bold uppercase tracking-wider border-b border-[#333333]">
@@ -968,7 +972,7 @@ export default function AdminPanel() {
                 </div>
               </div>
 
-              <div className="md:col-span-2 bg-[#252526] rounded border border-[#333333] flex flex-col overflow-hidden">
+              <div className="col-span-2 bg-[#252526] rounded border border-[#333333] flex flex-col overflow-hidden">
                 {activeTicket ? (
                   <>
                     <div className="p-4 bg-[#37373d] border-b border-[#333333] flex justify-between items-center">
@@ -1054,9 +1058,9 @@ export default function AdminPanel() {
                 </div>
               </div>
 
-              <div className="flex-1 flex flex-col md:flex-row gap-6 min-h-0">
+              <div className="flex-1 flex flex-row gap-6 min-h-0">
                 {/* File Explorer */}
-                <div className="w-full md:w-64 bg-[#252526] rounded-xl border border-[#333333] overflow-hidden flex flex-col shrink-0">
+                <div className="w-64 bg-[#252526] rounded-xl border border-[#333333] overflow-hidden flex flex-col shrink-0">
                   <div className="p-3 bg-[#37373d] border-b border-[#333333] flex items-center gap-2">
                     <FileText size={14} className="text-blue-400" />
                     <span className="text-[10px] uppercase font-bold text-[#858585]">Project Files</span>
@@ -1156,7 +1160,7 @@ export default function AdminPanel() {
                 <TrendingUp size={20} className="text-blue-400" />
                 Revenue & Performance Analytics
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-4 gap-4">
                 <div className="bg-[#252526] p-4 rounded border border-[#333333]">
                   <div className="text-[#858585] text-[10px] uppercase font-bold mb-1">Total Revenue</div>
                   <div className="text-xl font-bold text-green-400">Rs. {revenueStats.reduce((acc, curr) => acc + curr.totalRevenue, 0).toFixed(2)}</div>
@@ -1216,7 +1220,7 @@ export default function AdminPanel() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-2 gap-6">
                 <div className="bg-[#252526] rounded border border-[#333333] p-6">
                   <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
                     <Activity size={16} className="text-green-400" />
@@ -1296,12 +1300,12 @@ export default function AdminPanel() {
                 exit={{ opacity: 0, y: -10 }}
                 className="space-y-6"
               >
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div className="flex flex-row justify-between items-center gap-4">
                   <h2 className="text-xl font-bold text-white flex items-center gap-2">
                     <Wallet size={20} className="text-green-400" />
                     Finance Grid
                   </h2>
-                  <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
+                  <div className="flex flex-row gap-4 w-auto">
                     {bulkSelection.length > 0 && (
                       <button 
                         onClick={handleBulkApprove}
@@ -1311,7 +1315,7 @@ export default function AdminPanel() {
                         Approve Selected ({bulkSelection.length})
                       </button>
                     )}
-                    <div className="bg-[#252526] border border-[#333333] px-4 py-1.5 rounded flex items-center justify-between md:justify-start gap-4 text-xs">
+                    <div className="bg-[#252526] border border-[#333333] px-4 py-1.5 rounded flex items-center justify-start gap-4 text-xs">
                       <div className="flex items-center gap-2">
                         <span className="text-[#858585]">Pending:</span>
                         <span className="text-yellow-400 font-bold">Rs. {totalPendingAmount.toFixed(2)}</span>
@@ -1326,7 +1330,7 @@ export default function AdminPanel() {
                 </div>
 
                 <div className="bg-[#252526] rounded border border-[#333333] overflow-hidden shadow-2xl">
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto block">
                     <table className="w-full text-xs text-left min-w-[800px]">
                       <thead className="bg-[#37373d] text-[#858585] uppercase tracking-wider border-b border-[#333333]">
                         <tr>
@@ -1404,6 +1408,73 @@ export default function AdminPanel() {
                       </tbody>
                     </table>
                   </div>
+
+                  {/* Mobile Card View for Withdrawals (Hidden for Desktop View) */}
+                  <div className="hidden grid grid-cols-1 gap-4 p-4">
+                    {withdrawals.map((w) => (
+                      <div key={w.id} className="bg-[#333333] p-4 rounded-lg border border-[#444444] space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            {w.status === 'pending' && (
+                              <input 
+                                type="checkbox" 
+                                checked={bulkSelection.includes(w.id!)}
+                                onChange={(e) => {
+                                  if (e.target.checked) setBulkSelection([...bulkSelection, w.id!]);
+                                  else setBulkSelection(bulkSelection.filter(id => id !== w.id));
+                                }}
+                              />
+                            )}
+                            <span className="text-white font-mono text-xs truncate max-w-[150px]">{w.userId}</span>
+                          </div>
+                          <span className={cn(
+                            "px-2 py-0.5 rounded text-[10px] font-bold uppercase",
+                            w.status === 'pending' ? "bg-yellow-900/30 text-yellow-400 border border-yellow-800/50" :
+                            w.status === 'approved' ? "bg-green-900/30 text-green-400 border border-green-800/50" :
+                            "bg-red-900/30 text-red-400 border border-red-800/50"
+                          )}>
+                            {w.status}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <p className="text-[#858585] uppercase text-[10px] font-bold">Amount</p>
+                            <p className="text-green-400 font-bold">Rs. {w.amount.toFixed(2)}</p>
+                          </div>
+                          <div>
+                            <p className="text-[#858585] uppercase text-[10px] font-bold">Method</p>
+                            <p className="text-white">{w.paymentMethod}</p>
+                          </div>
+                          <div>
+                            <p className="text-[#858585] uppercase text-[10px] font-bold">Phone</p>
+                            <p className="text-white font-mono">{w.phoneNumber}</p>
+                          </div>
+                          <div>
+                            <p className="text-[#858585] uppercase text-[10px] font-bold">Date</p>
+                            <p className="text-[#858585]">{formatChatDate(toSafeDate(w.timestamp))}</p>
+                          </div>
+                        </div>
+                        {w.status === 'pending' && (
+                          <div className="flex gap-2 pt-2">
+                            <button 
+                              onClick={() => handleApprove(w)}
+                              disabled={!!loading}
+                              className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded-lg transition-all flex items-center justify-center gap-2"
+                            >
+                              <CheckCircle size={14} /> Approve
+                            </button>
+                            <button 
+                              onClick={() => handleReject(w.id!)}
+                              disabled={!!loading}
+                              className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 rounded-lg transition-all flex items-center justify-center gap-2"
+                            >
+                              <XCircle size={14} /> Reject
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </motion.div>
             )}
@@ -1468,7 +1539,7 @@ export default function AdminPanel() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-3 gap-6">
                   {gameSettings.map((game) => (
                     <div key={game.id} className="bg-[#252526] rounded-xl border border-[#333333] p-6 space-y-4 shadow-lg">
                       <div className="flex justify-between items-start">
@@ -1885,7 +1956,7 @@ export default function AdminPanel() {
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <h4 className="text-white font-medium">Global Reward Multiplier</h4>
                       <p className="text-xs text-[#858585]">Multiply all earnings (0.1x to 5.0x)</p>
@@ -1977,7 +2048,7 @@ export default function AdminPanel() {
                       </button>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-2 gap-6">
                       <div className="space-y-2">
                         <h4 className="text-white font-medium">Bot Display Name</h4>
                         <input 

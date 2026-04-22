@@ -9,7 +9,6 @@ interface AdResetterProps {
 }
 
 export default function AdResetter({ gameSessionId }: AdResetterProps) {
-  const [isSocialAdsEnabled, setIsSocialAdsEnabled] = useState(false);
   const [isBannerAdsEnabled, setIsBannerAdsEnabled] = useState(false);
   const [isAdMobBannerEnabled, setIsAdMobBannerEnabled] = useState(false);
   const [adTimer, setAdTimer] = useState(1.3);
@@ -19,7 +18,6 @@ export default function AdResetter({ gameSessionId }: AdResetterProps) {
   const [adType, setAdType] = useState<'adsterra' | 'admob'>('adsterra');
   
   const bannerContainerRef = useRef<HTMLDivElement>(null);
-  const socialScriptRef = useRef<HTMLScriptElement | null>(null);
   const bannerScriptsRef = useRef<HTMLScriptElement[]>([]);
   const admobSlotRef = useRef<any>(null);
 
@@ -28,7 +26,6 @@ export default function AdResetter({ gameSessionId }: AdResetterProps) {
     const unsub = onSnapshot(doc(db, 'admin_settings', 'show_game_ads'), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        setIsSocialAdsEnabled(data.isSocialAdsEnabled === true);
         setIsBannerAdsEnabled(data.isAdsEnabled === true);
         setIsAdMobBannerEnabled(data.isAdMobBannerEnabled === true);
         if (data.adTimer !== undefined) {
@@ -53,7 +50,6 @@ export default function AdResetter({ gameSessionId }: AdResetterProps) {
       setTimeLeft(adTimer);
 
       // Cleanup old ads
-      cleanupSocialAd();
       cleanupBannerAd();
       cleanupAdMobBanner();
 
@@ -71,9 +67,6 @@ export default function AdResetter({ gameSessionId }: AdResetterProps) {
 
       setIsRefreshing(false);
       
-      // Re-inject ads if enabled
-      if (isSocialAdsEnabled) injectSocialAd();
-      
       if (isBannerAdsEnabled && isAdMobBannerEnabled) {
         // Already set adType randomly
       } else if (isAdMobBannerEnabled) {
@@ -90,8 +83,6 @@ export default function AdResetter({ gameSessionId }: AdResetterProps) {
   useEffect(() => {
     if (isRefreshing) return;
 
-    if (isSocialAdsEnabled) injectSocialAd();
-    
     if (adType === 'admob' && isAdMobBannerEnabled) {
       injectAdMobBanner();
     } else if (adType === 'adsterra' && isBannerAdsEnabled) {
@@ -99,31 +90,10 @@ export default function AdResetter({ gameSessionId }: AdResetterProps) {
     }
     
     return () => {
-      cleanupSocialAd();
       cleanupBannerAd();
       cleanupAdMobBanner();
     };
-  }, [isSocialAdsEnabled, isBannerAdsEnabled, isAdMobBannerEnabled, adType, isRefreshing]);
-
-  const injectSocialAd = () => {
-    if (document.getElementById('adsterra-social-script')) return;
-    
-    const script = document.createElement('script');
-    script.id = 'adsterra-social-script';
-    script.src = 'https://pl28966635.profitablecpmratenetwork.com/b8/c3/a6/b8c3a69260978b25d65328a96e3f0dc4.js';
-    script.async = true;
-    document.body.appendChild(script);
-    socialScriptRef.current = script;
-  };
-
-  const cleanupSocialAd = () => {
-    const existing = document.getElementById('adsterra-social-script');
-    if (existing) existing.remove();
-    socialScriptRef.current = null;
-    
-    const socialBar = document.querySelector('div[id^="at-cv-"]');
-    if (socialBar) socialBar.remove();
-  };
+  }, [isBannerAdsEnabled, isAdMobBannerEnabled, adType, isRefreshing]);
 
   const injectBannerAd = () => {
     if (!bannerContainerRef.current) return;

@@ -5,7 +5,7 @@ import { handleFirestoreError, OperationType } from '../firebaseError';
 import { UserProfile, Status as StatusType } from '../types';
 import { Plus, Camera, Eye, Clock, X } from 'lucide-react';
 import { formatChatDate, cn, getTime, toSafeDate } from '../utils';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface StatusProps {
   profile: UserProfile;

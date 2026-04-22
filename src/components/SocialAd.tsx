@@ -24,7 +24,10 @@ export default function SocialAd({ activeTab }: SocialAdProps) {
   }, []);
 
   useEffect(() => {
-    if (!isEnabled || activeTab === 'games') {
+    const allowedTabs = ['games', 'wallet', 'status'];
+    const isAllowedTab = allowedTabs.includes(activeTab);
+
+    if (!isEnabled || !isAllowedTab || activeTab === 'admin') {
       const existing = document.getElementById('adsterra-social-script-global');
       if (existing) existing.remove();
       const socialBar = document.querySelector('div[id^="at-cv-"]');

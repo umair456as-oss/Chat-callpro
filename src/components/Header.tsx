@@ -186,7 +186,7 @@ export default function Header({ profile, onTabChange, onSearch }: HeaderProps) 
 
             <AnimatePresence>
               {isMenuOpen && (
-                <>
+                <div key="menu-wrapper">
                   <div 
                     className="fixed inset-0 z-40" 
                     onClick={() => setIsMenuOpen(false)}
@@ -249,7 +249,7 @@ export default function Header({ profile, onTabChange, onSearch }: HeaderProps) 
                       />
                     </button>
                   </motion.div>
-                </>
+                </div>
               )}
             </AnimatePresence>
           </div>

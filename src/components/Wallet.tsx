@@ -226,7 +226,7 @@ export default function Wallet({ profile }: WalletProps) {
               Recent Transactions
             </h3>
           </div>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto hidden md:block">
             <table className="w-full text-left">
               <thead className="bg-[#F0F2F5] text-xs uppercase text-[#667781]">
                 <tr>
@@ -271,6 +271,44 @@ export default function Wallet({ profile }: WalletProps) {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile Card View for Wallet Transactions */}
+          <div className="md:hidden divide-y divide-[#F0F2F5]">
+            {withdrawals.length === 0 ? (
+              <div className="px-6 py-10 text-center text-[#667781]">No transactions found.</div>
+            ) : (
+              withdrawals.map((w) => (
+                <div key={w.id} className="p-4 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-[#54656F]">
+                        <Smartphone size={14} />
+                      </div>
+                      <span className="text-sm font-bold">{w.paymentMethod}</span>
+                    </div>
+                    <span className={cn(
+                      "px-3 py-1 rounded-full text-[10px] font-bold uppercase",
+                      w.status === 'pending' && "bg-yellow-100 text-yellow-700",
+                      w.status === 'approved' && "bg-green-100 text-green-700",
+                      w.status === 'rejected' && "bg-red-100 text-red-700"
+                    )}>
+                      {w.status}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-end">
+                    <div>
+                      <p className="text-[10px] text-[#667781] uppercase font-bold">Date</p>
+                      <p className="text-sm text-[#111B21]">{w.timestamp ? formatChatDate(toSafeDate(w.timestamp)) : '...'}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] text-[#667781] uppercase font-bold">Amount</p>
+                      <p className="text-lg font-bold text-[#111B21]">Rs. {w.amount.toFixed(2)}</p>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>

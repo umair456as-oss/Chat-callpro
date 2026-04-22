@@ -4,7 +4,7 @@ import { db } from '../firebase';
 import { UserProfile, GameLog, AppSettings, GameSettings } from '../types';
 import { handleFirestoreError, OperationType } from '../firebaseError';
 import { onSnapshot } from 'firebase/firestore';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   RotateCw, Calculator, Eraser, Calendar, Dices, 
   Type, ShieldCheck, Coins, LayoutGrid, PlayCircle,

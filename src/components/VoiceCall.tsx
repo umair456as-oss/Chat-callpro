@@ -4,7 +4,7 @@ import { db } from '../firebase';
 import { handleFirestoreError, OperationType } from '../firebaseError';
 import { UserProfile, Call } from '../types';
 import { Phone, PhoneOff, Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../utils';
 
 interface VoiceCallProps {

@@ -144,7 +144,7 @@ export default function Contacts({ onSelectChat, onBack }: ContactsProps) {
               <p className="text-sm text-[#667781] font-medium">Searching users...</p>
             </div>
           ) : (
-            <>
+            <div key="contacts-content">
               {searchTerm && searchResults.length > 0 && (
                 <div className="px-6 py-2 bg-[#F0F2F5] text-[11px] font-bold text-[#00A884] uppercase tracking-widest">
                   Global Search Results
@@ -220,7 +220,7 @@ export default function Contacts({ onSelectChat, onBack }: ContactsProps) {
                   </motion.div>
                 ))
               )}
-            </>
+            </div>
           )}
         </AnimatePresence>
       </div>

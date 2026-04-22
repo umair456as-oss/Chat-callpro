@@ -20,7 +20,8 @@ import { cn } from './utils';
 import VoiceCall from './components/VoiceCall';
 import Header from './components/Header';
 import SocialAd from './components/SocialAd';
-import { motion, AnimatePresence } from 'framer-motion';
+import GlobalBannerAd from './components/GlobalBannerAd';
+import { motion, AnimatePresence } from 'motion/react';
 
 const DEFAULT_VAPID_KEY = 'BMzgLSxYxgUSrjLkyEYhCqMJflI2nISGKbKU8xBR_vEqbHeNK59_ibPl6mEPpQ5gGve7qQYc7LuZmkz0juS-wRo';
 
@@ -334,11 +335,11 @@ export default function App() {
   }
 
   return (
-    <div className="layout-shield">
-      <Header profile={profile} onTabChange={setActiveTab} onSearch={setSearchQuery} />
+    <div className={cn(activeTab === 'admin' ? "w-full h-screen flex flex-col bg-[#1e1e1e] relative overflow-hidden" : "layout-shield")}>
+      {activeTab !== 'admin' && <Header profile={profile} onTabChange={setActiveTab} onSearch={setSearchQuery} />}
       
       {/* System Announcement Ticker (Elite Feature) */}
-      {appSettings?.tickerMessages && appSettings.tickerMessages.length > 0 && (
+      {activeTab !== 'admin' && appSettings?.tickerMessages && appSettings.tickerMessages.length > 0 && (
         <div className="bg-[#128C7E] text-white py-1.5 px-4 overflow-hidden whitespace-nowrap relative z-50 border-b border-[#075E54]">
           <div className="inline-block animate-marquee hover:pause">
             {appSettings.tickerMessages.map((msg, i) => (
@@ -351,7 +352,7 @@ export default function App() {
       )}
 
       {/* Announcement Ticker */}
-      {announcements.length > 0 && (
+      {activeTab !== 'admin' && announcements.length > 0 && (
         <div className="bg-[#00A884] text-white py-2 px-4 overflow-hidden whitespace-nowrap relative z-50">
           <div className="inline-block animate-marquee hover:pause">
             {announcements.map((a, i) => (
@@ -364,7 +365,10 @@ export default function App() {
       )}
 
       {/* Social Ad (Top-0, only when not in game) */}
-      <SocialAd activeTab={activeTab} />
+      {activeTab !== 'admin' && <SocialAd activeTab={activeTab} />}
+      
+      {/* Global Banner Ad (Shows after 10 mins in non-game/wallet/status tabs) */}
+      {activeTab !== 'admin' && <GlobalBannerAd activeTab={activeTab} />}
 
       <div className="flex flex-col flex-1 overflow-hidden">
         {/* Main Content Area */}
@@ -409,11 +413,11 @@ export default function App() {
         {activeTab === 'status' && <Status profile={profile} />}
         {activeTab === 'wallet' && <Wallet profile={profile} />}
         {activeTab === 'games' && <Games profile={profile} />}
-        {activeTab === 'admin' && (profile.role === 'admin' || profile.email === 'abdulrehmanhabib.com@gmail.com') && <AdminPanel />}
+        {activeTab === 'admin' && (profile.role === 'admin' || profile.email === 'abdulrehmanhabib.com@gmail.com') && <AdminPanel onExit={() => setActiveTab('chats')} />}
         </div>
         
         {/* Sidebar Navigation (Now at the bottom for mobile feel) */}
-        <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} profile={profile} />
+        {activeTab !== 'admin' && <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} profile={profile} />}
       </div>
 
       {/* Incoming Call UI */}

@@ -156,7 +156,7 @@ export default function ChatList({ onSelectChat, selectedChat, searchQuery = '' 
           {isLoading ? (
             Array.from({ length: 10 }).map((_, i) => <ChatSkeleton key={i} />)
           ) : (
-            <>
+            <div key="chat-list-content">
               {searchTerm && searchResults.length > 0 && (
                 <div className="px-6 py-2 text-[10px] font-black text-[#00A884] uppercase tracking-[0.2em] bg-[#F0F2F5]/50">
                   Global Search
@@ -253,7 +253,7 @@ export default function ChatList({ onSelectChat, selectedChat, searchQuery = '' 
                   </motion.div>
                 ))
               )}
-            </>
+            </div>
           )}
         </AnimatePresence>
       </div>
