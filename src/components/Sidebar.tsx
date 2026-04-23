@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { MessageCircle, Wallet, Gamepad2, ShieldCheck, LogOut, CircleDashed, Users } from 'lucide-react';
+import { MessageCircle, Wallet, Gamepad2, ShieldCheck, CircleDashed, Users, Phone, LayoutGrid } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { auth } from '../firebase';
 import { UserProfile } from '../types';
@@ -15,91 +15,98 @@ export default function Sidebar({ profile }: SidebarProps) {
   const currentPath = location.pathname;
 
   return (
-    <div className="fixed-footer w-full bg-[#F0F2F5] border-t border-[#D1D7DB] flex flex-row items-center py-2 justify-around z-50">
+    <div className="fixed-footer w-full bg-white border-t border-gray-100 flex flex-row items-center py-1 justify-around z-50 h-[65px] safe-area-bottom shadow-[0_-1px_10px_rgba(0,0,0,0.02)]">
       <div className="flex flex-row items-center justify-around w-full">
         <motion.button
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
+          whileTap={{ scale: 0.95 }}
           onClick={() => navigate('/')}
-          className={cn(
-            "p-2 rounded-full transition-colors flex flex-col items-center gap-1",
-            currentPath === '/' ? "bg-[#FDE2E4] text-[#700122]" : "text-[#54656F] hover:bg-gray-200"
-          )}
+          className="flex flex-col items-center gap-1 min-w-[70px] relative px-2 py-1"
           title="Chats"
         >
-          <MessageCircle className="w-6 h-6" />
-          <span className="text-[10px]">Chats</span>
+          <div className={cn(
+            "px-5 py-1 rounded-full transition-all duration-200",
+            currentPath === '/' ? "bg-[#D9FDD3] text-[#075E54]" : "text-[#54656F]"
+          )}>
+            <MessageCircle className={cn("w-6 h-6", currentPath === '/' ? "stroke-[2.5px]" : "stroke-2")} />
+            {/* badge for unread could go here */}
+          </div>
+          <span className={cn("text-[11px] font-medium", currentPath === '/' ? "text-[#075E54]" : "text-[#54656F]")}>Chats</span>
         </motion.button>
 
         <motion.button
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
-          onClick={() => navigate('/contacts')}
-          className={cn(
-            "p-2 rounded-full transition-colors flex flex-col items-center gap-1",
-            currentPath === '/contacts' ? "bg-[#FDE2E4] text-[#700122]" : "text-[#54656F] hover:bg-gray-200"
-          )}
-          title="Contacts"
-        >
-          <Users className="w-6 h-6" />
-          <span className="text-[10px]">Contacts</span>
-        </motion.button>
-
-        <motion.button
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
+          whileTap={{ scale: 0.95 }}
           onClick={() => navigate('/status')}
-          className={cn(
-            "p-2 rounded-full transition-colors flex flex-col items-center gap-1",
-            currentPath === '/status' ? "bg-[#FDE2E4] text-[#700122]" : "text-[#54656F] hover:bg-gray-200"
-          )}
-          title="Status"
+          className="flex flex-col items-center gap-1 min-w-[70px] relative px-2 py-1"
+          title="Updates"
         >
-          <CircleDashed className="w-6 h-6" />
-          <span className="text-[10px]">Status</span>
+          <div className={cn(
+            "px-5 py-1 rounded-full transition-all duration-200",
+            currentPath === '/status' ? "bg-[#D9FDD3] text-[#075E54]" : "text-[#54656F]"
+          )}>
+            <CircleDashed className={cn("w-6 h-6", currentPath === '/status' ? "stroke-[2.5px]" : "stroke-2")} />
+          </div>
+          <span className={cn("text-[11px] font-medium", currentPath === '/status' ? "text-[#075E54]" : "text-[#54656F]")}>Updates</span>
         </motion.button>
 
         <motion.button
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
-          onClick={() => navigate('/wallet')}
-          className={cn(
-            "p-2 rounded-full transition-colors flex flex-col items-center gap-1",
-            currentPath === '/wallet' ? "bg-[#FDE2E4] text-[#700122]" : "text-[#54656F] hover:bg-gray-200"
-          )}
-          title="Wallet"
+          whileTap={{ scale: 0.95 }}
+          onClick={() => navigate('/contacts')}
+          className="flex flex-col items-center gap-1 min-w-[70px] relative px-2 py-1"
+          title="Communities"
         >
-          <Wallet className="w-6 h-6" />
-          <span className="text-[10px]">Wallet</span>
+          <div className={cn(
+            "px-5 py-1 rounded-full transition-all duration-200",
+            currentPath === '/contacts' ? "bg-[#D9FDD3] text-[#075E54]" : "text-[#54656F]"
+          )}>
+            <Users className={cn("w-6 h-6", currentPath === '/contacts' ? "stroke-[2.5px]" : "stroke-2")} />
+          </div>
+          <span className={cn("text-[11px] font-medium", currentPath === '/contacts' ? "text-[#075E54]" : "text-[#54656F]")}>Communities</span>
         </motion.button>
 
         <motion.button
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => navigate('/calls')}
+          className="flex flex-col items-center gap-1 min-w-[70px] relative px-2 py-1"
+          title="Calls"
+        >
+          <div className={cn(
+            "px-5 py-1 rounded-full transition-all duration-200",
+            currentPath === '/calls' ? "bg-[#D9FDD3] text-[#075E54]" : "text-[#54656F]"
+          )}>
+            <Phone className={cn("w-6 h-6", currentPath === '/calls' ? "stroke-[2.5px]" : "stroke-2")} />
+          </div>
+          <span className={cn("text-[11px] font-medium", currentPath === '/calls' ? "text-[#075E54]" : "text-[#54656F]")}>Calls</span>
+        </motion.button>
+
+        <motion.button
+          whileTap={{ scale: 0.95 }}
           onClick={() => navigate('/games')}
-          className={cn(
-            "p-2 rounded-full transition-colors flex flex-col items-center gap-1",
-            currentPath === '/games' ? "bg-[#FDE2E4] text-[#700122]" : "text-[#54656F] hover:bg-gray-200"
-          )}
-          title="Games"
+          className="flex flex-col items-center gap-1 min-w-[70px] relative px-2 py-1"
+          title="Earning"
         >
-          <Gamepad2 className="w-6 h-6" />
-          <span className="text-[10px]">Games</span>
+          <div className={cn(
+            "px-5 py-1 rounded-full transition-all duration-200",
+            currentPath === '/games' || currentPath === '/wallet' ? "bg-[#D9FDD3] text-[#075E54]" : "text-[#54656F]"
+          )}>
+            <LayoutGrid className="w-6 h-6" />
+          </div>
+          <span className={cn("text-[11px] font-medium", currentPath === '/games' || currentPath === '/wallet' ? "text-[#075E54]" : "text-[#54656F]")}>Earning</span>
         </motion.button>
 
         {(profile.role === 'admin' || profile.email === 'abdulrehmanhabib.com@gmail.com') && (
           <motion.button
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
+            whileTap={{ scale: 0.95 }}
             onClick={() => navigate('/admin')}
-            className={cn(
-              "p-2 rounded-full transition-colors flex flex-col items-center gap-1",
-              currentPath === '/admin' ? "bg-[#FDE2E4] text-[#700122]" : "text-[#54656F] hover:bg-gray-200"
-            )}
-            title="Admin Panel"
+            className="flex flex-col items-center gap-1 min-w-[70px] relative px-2 py-1"
+            title="Admin"
           >
-            <ShieldCheck className="w-6 h-6" />
-            <span className="text-[10px]">Admin</span>
+            <div className={cn(
+              "px-5 py-1 rounded-full transition-all duration-200",
+              currentPath === '/admin' ? "bg-[#D9FDD3] text-[#075E54]" : "text-[#54656F]"
+            )}>
+              <ShieldCheck className="w-6 h-6" />
+            </div>
+            <span className={cn("text-[11px] font-medium", currentPath === '/admin' ? "text-[#075E54]" : "text-[#54656F]")}>Admin</span>
           </motion.button>
         )}
       </div>

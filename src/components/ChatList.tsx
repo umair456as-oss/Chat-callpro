@@ -27,7 +27,10 @@ export default function ChatList({ onSelectChat, selectedChat, searchQuery = '' 
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<UserProfile[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [activeFilter, setActiveFilter] = useState('All');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const filters = ['All', 'Unread', 'Favorites', 'Groups'];
 
   // Sync internal search with prop search from header
   useEffect(() => {
@@ -128,52 +131,53 @@ export default function ChatList({ onSelectChat, selectedChat, searchQuery = '' 
 
   return (
     <div className="flex flex-col h-full bg-white">
-      <div className="p-4 flex items-center justify-between bg-white sticky top-0 z-20">
-        <h1 className="text-2xl font-black text-[#111B21] tracking-tight">Chats</h1>
-        <div className="flex gap-1">
-          <button className="p-2.5 hover:bg-[#F0F2F5] rounded-full transition-all text-[#54656F] active:scale-90"><Filter size={20} /></button>
-          <button className="p-2.5 hover:bg-[#F0F2F5] rounded-full transition-all text-[#54656F] active:scale-90"><UserPlus size={20} /></button>
-        </div>
+      <div className="px-4 py-2 bg-white flex gap-2 overflow-x-auto scrollbar-hide sticky top-0 z-20">
+        {filters.map((filter) => (
+          <button
+            key={filter}
+            onClick={() => setActiveFilter(filter)}
+            className={cn(
+              "px-4 py-1.5 rounded-full text-sm font-medium transition-all whitespace-nowrap",
+              activeFilter === filter 
+                ? "bg-[#D9FDD3] text-[#008069]" 
+                : "bg-[#F0F2F5] text-[#54656F] hover:bg-[#E9EDEF]"
+            )}
+          >
+            {filter}
+          </button>
+        ))}
       </div>
 
-      <div className="px-4 pb-4 bg-white sticky top-[72px] z-20 shadow-sm">
+      <div className="px-4 pb-3 bg-white sticky top-[48px] z-20">
         <form onSubmit={handleSearch} className="relative group">
           <input
             type="text"
-            placeholder="Search or start new chat..."
-            className="w-full bg-[#F0F2F5] py-2.5 pl-12 pr-12 rounded-2xl text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#A01249] transition-all border border-transparent shadow-inner"
+            placeholder="Search..."
+            className="w-full bg-[#F0F2F5] py-2 pl-12 pr-4 rounded-full text-sm focus:outline-none focus:bg-white transition-all border border-transparent shadow-sm placeholder:text-[#8696A0] text-[#111B21]"
             value={searchTerm}
             onChange={(e) => {
               setSearchTerm(e.target.value);
               if (!e.target.value) setSearchResults([]);
             }}
           />
-          <Search className="absolute left-4 top-3 text-[#54656F] group-focus-within:text-[#A01249] transition-colors" size={18} />
-          {searchTerm && (
-            <button 
-              type="submit"
-              className="absolute right-2 top-1.5 px-3 py-1 bg-[#A01249] text-white text-[10px] font-black uppercase rounded-lg hover:bg-[#8E0E3D] transition-colors shadow-sm"
-            >
-              Find
-            </button>
-          )}
+          <Search className="absolute left-4 top-2.5 text-[#54656F]" size={18} />
         </form>
       </div>
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar mt-2">
+      <div className="flex-1 overflow-y-auto custom-scrollbar">
         <AnimatePresence mode="popLayout">
           {isLoading ? (
             Array.from({ length: 10 }).map((_, i) => <ChatSkeleton key={i} />)
           ) : (
             <div key="chat-list-content">
               {searchTerm && searchResults.length > 0 && (
-                <div className="px-6 py-2 text-[10px] font-black text-[#A01249] uppercase tracking-[0.2em] bg-[#F0F2F5]/50">
+                <div className="px-6 py-2 text-[10px] font-bold text-[#008069] uppercase tracking-wider bg-[#F0F2F5]/50">
                   Global Search
                 </div>
               )}
               
               {!searchTerm && users.length > 0 && (
-                <div className="px-6 py-2 text-[10px] font-black text-[#667781] uppercase tracking-[0.2em] bg-[#F0F2F5]/50">
+                <div className="px-6 py-2 text-[10px] font-bold text-[#667781] uppercase tracking-wider bg-[#F0F2F5]/50">
                   Recent Chats
                 </div>
               )}
@@ -206,57 +210,35 @@ export default function ChatList({ onSelectChat, selectedChat, searchQuery = '' 
                     key={user.uid}
                     onClick={() => onSelectChat(user)}
                     className={cn(
-                      "flex items-center p-3.5 cursor-pointer hover:bg-[#F5F6F6] border-b border-[#F5F6F6] transition-all duration-200 group relative mx-2 rounded-2xl mb-1",
-                      selectedChat?.uid === user.uid && "bg-[#F0F2F5] hover:bg-[#F0F2F5] shadow-sm"
+                      "flex items-center p-3 cursor-pointer hover:bg-[#F5F6F6] transition-all duration-200 group relative",
+                      selectedChat?.uid === user.uid && "bg-[#F0F2F5]"
                     )}
                   >
-                    {selectedChat?.uid === user.uid && (
-                      <motion.div 
-                        layoutId="active-indicator"
-                        className="absolute left-0 w-1.5 h-10 bg-[#A01249] rounded-r-full z-10" 
-                      />
-                    )}
-                    
                     <div className="relative flex-shrink-0">
-                      <div className={cn(
-                        "p-[2.5px] rounded-full transition-all duration-500",
-                        user.isOnline ? "bg-gradient-to-tr from-[#C41E3A] to-[#A01249] shadow-md" : "bg-gray-200"
-                      )}>
-                        <img
-                          src={user.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}`}
-                          alt={user.displayName || ''}
-                          className="w-14 h-14 rounded-full object-cover border-2 border-white"
-                          referrerPolicy="no-referrer"
-                        />
-                      </div>
+                      <img
+                        src={user.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}`}
+                        alt={user.displayName || ''}
+                        className="w-12 h-12 rounded-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
                       {user.isOnline && (
-                        <div className="absolute bottom-0.5 right-0.5 w-4 h-4 bg-[#C41E3A] rounded-full border-2 border-white shadow-lg"></div>
+                        <div className="absolute bottom-0.5 right-0.5 w-3.5 h-3.5 bg-[#25D366] rounded-full border-2 border-white shadow-sm"></div>
                       )}
                     </div>
-                    <div className="flex-1 min-w-0 ml-4">
-                      <div className="flex justify-between items-baseline mb-1">
-                        <h3 className="font-bold text-[#111B21] truncate group-hover:text-[#A01249] transition-colors text-base">
+                    <div className="flex-1 min-w-0 ml-3 border-b border-[#F5F6F6] py-2 h-full">
+                      <div className="flex justify-between items-baseline mb-0.5">
+                        <h3 className="font-semibold text-[#111B21] truncate text-base">
                           {user.displayName}
                         </h3>
-                        <span className={cn(
-                          "text-[10px] font-black transition-colors uppercase tracking-widest",
-                          user.isOnline ? "text-[#A01249]" : "text-[#8696A0]"
-                        )}>
+                        <span className="text-[11px] text-[#667781]">
                           {user.isOnline ? 'Online' : 'Offline'}
                         </span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <p className="text-sm text-[#667781] truncate flex-1 font-medium">
-                          {user.isVerified && <span className="text-[#A01249] mr-1">✓</span>}
+                        <p className="text-[13px] text-[#667781] truncate flex-1">
+                          {user.isVerified && <span className="text-[#25D366] mr-1">✓</span>}
                           {user.bio || user.email}
                         </p>
-                        {user.isOnline && (
-                          <motion.div 
-                            animate={{ scale: [1, 1.4, 1], opacity: [0.4, 1, 0.4] }}
-                            transition={{ repeat: Infinity, duration: 2.5 }}
-                            className="w-2.5 h-2.5 bg-[#A01249] rounded-full ml-2 shadow-[0_0_10px_rgba(160,18,73,0.5)]"
-                          />
-                        )}
                       </div>
                     </div>
                   </motion.div>

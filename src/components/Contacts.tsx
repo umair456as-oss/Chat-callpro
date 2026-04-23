@@ -117,18 +117,18 @@ export default function Contacts({ onSelectChat, onBack }: ContactsProps) {
           <input
             type="text"
             placeholder="Search by email or username..."
-            className="w-full bg-[#F0F2F5] py-3 pl-12 pr-12 rounded-2xl text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#00A884] transition-all border border-transparent shadow-inner"
+            className="w-full bg-[#F0F2F5] py-3 pl-12 pr-12 rounded-2xl text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#25D366] transition-all border border-transparent shadow-inner"
             value={searchTerm}
             onChange={(e) => {
               setSearchTerm(e.target.value);
               if (!e.target.value) setSearchResults([]);
             }}
           />
-          <Search className="absolute left-4 top-3.5 text-[#54656F] group-focus-within:text-[#00A884] transition-colors" size={18} />
+          <Search className="absolute left-4 top-3.5 text-[#54656F] group-focus-within:text-[#25D366] transition-colors" size={18} />
           {searchTerm && (
             <button 
               type="submit"
-              className="absolute right-3 top-2 px-3 py-1.5 bg-[#00A884] text-white text-xs font-bold rounded-lg hover:bg-[#008F6F] transition-colors shadow-sm"
+              className="absolute right-3 top-2 px-3 py-1.5 bg-[#25D366] text-white text-xs font-bold rounded-lg hover:bg-[#20bd5c] transition-colors shadow-sm"
             >
               Search
             </button>
@@ -140,19 +140,19 @@ export default function Contacts({ onSelectChat, onBack }: ContactsProps) {
         <AnimatePresence mode="popLayout">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center p-12 space-y-4">
-              <div className="w-10 h-10 border-4 border-[#00A884] border-t-transparent rounded-full animate-spin" />
+              <div className="w-10 h-10 border-4 border-[#25D366] border-t-transparent rounded-full animate-spin" />
               <p className="text-sm text-[#667781] font-medium">Searching users...</p>
             </div>
           ) : (
             <div key="contacts-content">
               {searchTerm && searchResults.length > 0 && (
-                <div className="px-6 py-2 bg-[#F0F2F5] text-[11px] font-bold text-[#00A884] uppercase tracking-widest">
+                <div className="px-6 py-2 bg-[#F0F2F5] text-[11px] font-bold text-[#075E54] uppercase tracking-widest border-b border-gray-100">
                   Global Search Results
                 </div>
               )}
               
               {!searchTerm && contacts.length > 0 && (
-                <div className="px-6 py-2 bg-[#F0F2F5] text-[11px] font-bold text-[#00A884] uppercase tracking-widest">
+                <div className="px-6 py-2 bg-[#F0F2F5] text-[11px] font-bold text-[#075E54] uppercase tracking-widest border-b border-gray-100">
                   Recent Contacts
                 </div>
               )}
@@ -190,7 +190,7 @@ export default function Contacts({ onSelectChat, onBack }: ContactsProps) {
                       <img
                         src={user.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}`}
                         alt={user.displayName || ''}
-                        className="w-14 h-14 rounded-full object-cover border-2 border-white shadow-sm group-hover:border-[#00A884] transition-colors"
+                        className="w-14 h-14 rounded-full object-cover border-2 border-white shadow-sm group-hover:border-[#25D366] transition-colors"
                         referrerPolicy="no-referrer"
                       />
                       {user.isOnline && (
@@ -199,11 +199,11 @@ export default function Contacts({ onSelectChat, onBack }: ContactsProps) {
                     </div>
                     <div className="flex-1 min-w-0 ml-4">
                       <div className="flex justify-between items-center">
-                        <h3 className="font-bold text-[#111B21] truncate group-hover:text-[#00A884] transition-colors">
+                        <h3 className="font-bold text-[#111B21] truncate group-hover:text-[#075E54] transition-colors">
                           {user.displayName}
                         </h3>
                         {user.isVerified && (
-                          <span className="text-[#00A884] bg-[#D9FDD3] p-0.5 rounded-full">
+                          <span className="text-[#25D366] bg-[#D9FDD3] p-0.5 rounded-full">
                             <Check size={12} />
                           </span>
                         )}

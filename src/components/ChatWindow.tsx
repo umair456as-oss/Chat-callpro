@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, or, and, runTransaction } from 'firebase/firestore';
 import { db } from '../firebase';
 import { UserProfile, Message, AppSettings } from '../types';
 import { handleFirestoreError, OperationType } from '../firebaseError';
-import { Send, Plus, Search, MoreVertical, Smile, Mic, Gamepad2, ArrowLeft, Image, BadgeCheck, XCircle, Phone, Play, Pause, Trash2, Share2, Check } from 'lucide-react';
+import { Send, Plus, Search, MoreVertical, Smile, Mic, Gamepad2, ArrowLeft, Image, BadgeCheck, XCircle, Phone, Play, Pause, Trash2, Share2, Check, Camera, Wallet } from 'lucide-react';
 import { formatMessageTime, cn, formatChatDate, toSafeDate } from '../utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { updateDoc, doc } from 'firebase/firestore';
@@ -45,14 +46,19 @@ const MessageBubble = React.memo(({
     >
       <div
         className={cn(
-          "max-w-[75%] px-4 py-2 rounded-2xl relative group transition-all duration-300",
-          msg.isDeletedForEveryone ? "bg-gray-100 italic text-gray-400 shadow-sm" : (
+          "max-w-[85%] px-3 py-1.5 rounded-xl relative group transition-all duration-300 shadow-sm",
+          msg.isDeletedForEveryone ? "bg-gray-100 italic text-gray-400" : (
             isOutgoing 
-              ? "bg-[#FDE2E4] rounded-tr-none shadow-md hover:shadow-lg ring-1 ring-[#FDE2E4] hover:ring-[#f1d1d4] shadow-[0_0_15px_rgba(253,226,228,0.4)]" 
-              : "bg-white rounded-tl-none shadow-sm hover:shadow-md ring-1 ring-white"
+              ? "bg-[#D9FDD3] rounded-tr-none" 
+              : "bg-white rounded-tl-none"
           )
         )}
       >
+        {/* Triangle Tail */}
+        <div className={cn(
+          "absolute top-0 w-3 h-3 z-0",
+          isOutgoing ? "-right-1 bg-[#D9FDD3] clip-path-right" : "-left-1 bg-white clip-path-left"
+        )} style={{ clipPath: isOutgoing ? 'polygon(0 0, 0 100%, 100% 0)' : 'polygon(0 0, 100% 0, 100% 100%)' }}></div>
         {/* Actions */}
         {!msg.isDeletedForEveryone && (
           <div className={cn(
@@ -78,8 +84,8 @@ const MessageBubble = React.memo(({
 
         {/* Reply Preview */}
         {msg.replyTo && (
-          <div className="bg-black/5 border-l-4 border-[#A01249] p-2 rounded-lg mb-2 text-[11px] text-[#667781] flex flex-col">
-            <span className="font-bold text-[#A01249] mb-0.5">
+          <div className="bg-black/5 border-l-4 border-[#06D755] p-2 rounded-lg mb-2 text-[12px] text-[#667781] flex flex-col">
+            <span className="font-semibold text-[#06D755] mb-0.5">
               {messageMap[msg.replyTo]?.senderId === currentUser.uid ? 'You' : chat.displayName}
             </span>
             <span className="truncate">
@@ -228,7 +234,7 @@ const VoiceMessage = ({ audioUrl }: { audioUrl: string }) => {
     <div className="flex items-center gap-3 py-2 min-w-[220px] bg-black/5 px-3 rounded-xl border border-black/5">
       <button 
         onClick={togglePlayback}
-        className="w-10 h-10 flex items-center justify-center bg-[#A01249] text-white rounded-full hover:bg-[#8E0E3D] transition-all shadow-sm active:scale-95"
+        className="w-10 h-10 flex items-center justify-center bg-[#25D366] text-white rounded-full hover:bg-[#20bd5c] transition-all shadow-sm active:scale-95"
       >
         {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-1" />}
       </button>
@@ -244,7 +250,7 @@ const VoiceMessage = ({ audioUrl }: { audioUrl: string }) => {
               key={i}
               className={cn(
                 "w-[3px] rounded-full transition-all duration-200",
-                isActive ? "bg-[#A01249]" : "bg-gray-300"
+                isActive ? "bg-[#25D366]" : "bg-gray-300"
               )}
               style={{ height: `${height}%` }}
             />
@@ -283,6 +289,7 @@ interface ChatWindowProps {
 }
 
 export default function ChatWindow({ chat, currentUser, onBack, appSettings }: ChatWindowProps) {
+  const navigate = useNavigate();
   const [messages, setMessages] = useState<Message[]>([]);
   const [messageMap, setMessageMap] = useState<Record<string, Message>>({});
   const [newMessage, setNewMessage] = useState('');
@@ -385,16 +392,19 @@ export default function ChatWindow({ chat, currentUser, onBack, appSettings }: C
       setMessageMap(map);
       
       // Mark unread messages as read (Read Receipts Logic)
-      snapshot.docs.forEach(async (d) => {
-        const data = d.data();
-        if (data.receiverId === currentUser.uid && data.status !== 'read') {
-          try {
-            await updateDoc(d.ref, { status: 'read' });
-          } catch (e) {
-            console.error('Failed to update read status:', e);
+      const readReceiptsEnabled = currentUser.userSettings?.readReceipts !== false;
+      if (readReceiptsEnabled) {
+        snapshot.docs.forEach(async (d) => {
+          const data = d.data();
+          if (data.receiverId === currentUser.uid && data.status !== 'read') {
+            try {
+              await updateDoc(d.ref, { status: 'read' });
+            } catch (e) {
+              console.error('Failed to update read status:', e);
+            }
           }
-        }
-      });
+        });
+      }
 
       setTimeout(() => {
         scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
@@ -735,60 +745,57 @@ export default function ChatWindow({ chat, currentUser, onBack, appSettings }: C
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#F8F9FA] relative overflow-hidden">
+    <>
+      <div className="flex flex-col h-full bg-[#EFEAE2] relative overflow-hidden">
       {/* Dynamic Wallpaper (Elite Feature) */}
       <div 
-        className="absolute inset-0 opacity-40 pointer-events-none z-0"
+        className="absolute inset-0 opacity-20 pointer-events-none z-0"
         style={{ 
-          backgroundImage: `url(${currentUser.wallpaper || 'https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center'
+          backgroundImage: `url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')`,
+          backgroundSize: '400px',
+          backgroundRepeat: 'repeat'
         }}
       ></div>
 
       {/* Chat Header */}
-      <div className="p-3 bg-[#F0F2F5] flex items-center justify-between border-b border-[#D1D7DB] z-10">
-        <div className="flex items-center">
+      <div className="px-3 h-[60px] bg-white flex items-center justify-between border-b border-gray-100 z-10 shadow-sm">
+        <div className="flex items-center flex-1">
           {onBack && (
             <button 
               onClick={onBack}
-              className="md:hidden mr-2 p-1 hover:bg-gray-200 rounded-full text-[#54656F]"
+              className="mr-1 p-2 hover:bg-gray-100 rounded-full text-[#54656F]"
             >
-              <ArrowLeft size={24} />
+              <ArrowLeft size={22} strokeWidth={2.5} />
             </button>
           )}
-          <div className="relative">
+          <div className="relative cursor-pointer flex items-center">
             <img
               src={chat.photoURL || `https://ui-avatars.com/api/?name=${chat.displayName}`}
               alt={chat.displayName || ''}
-              className="w-10 h-10 rounded-full mr-3 border border-gray-300"
+              className="w-10 h-10 rounded-full mr-3"
               referrerPolicy="no-referrer"
             />
-            {chat.isOnline && <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-[#F0F2F5]"></div>}
-          </div>
-          <div>
-            <h3 className="font-medium text-[#111B21] flex items-center gap-1">
-              {chat.displayName}
-              {chat.isVerified && <BadgeCheck size={14} className="text-blue-400" />}
-            </h3>
-            <p className="text-[10px] text-[#667781]">
-              {chat.isOnline ? 'Online' : `Last seen ${formatChatDate(new Date(chat.lastSeen))}`}
-            </p>
+            <div className="flex flex-col">
+              <h3 className="font-semibold text-[#111B21] text-[15px] leading-tight">
+                {chat.displayName}
+              </h3>
+              <p className="text-[11px] text-[#667781]">
+                {chat.isOnline ? 'Online' : 'Last seen today'}
+              </p>
+            </div>
           </div>
         </div>
-        <div className="flex gap-4 text-[#54656F]">
+        <div className="flex gap-2 text-[#54656F]">
+          <button className="p-2 hover:bg-gray-100 rounded-full transition-colors hidden sm:block"><Gamepad2 size={22} /></button>
           <button 
             onClick={() => setActiveCall(true)}
-            className="p-2 hover:bg-gray-200 rounded-full transition-colors" 
+            className="p-2 hover:bg-gray-100 rounded-full transition-colors" 
             title="Voice Call"
           >
-            <Phone size={20} />
+            <Phone size={22} />
           </button>
-          <button onClick={() => setIsWallpaperModalOpen(true)} className="p-2 hover:bg-gray-200 rounded-full transition-colors" title="Change Wallpaper">
-            <Image size={20} />
-          </button>
-          <button><Search size={20} /></button>
-          <button><MoreVertical size={20} /></button>
+          <button className="p-2 hover:bg-gray-100 rounded-full transition-colors"><Search size={22} /></button>
+          <button className="p-2 hover:bg-gray-100 rounded-full transition-colors"><MoreVertical size={22} /></button>
         </div>
       </div>
 
@@ -823,126 +830,158 @@ export default function ChatWindow({ chat, currentUser, onBack, appSettings }: C
       </div>
 
       {/* Input Area */}
-      <div className="fixed-footer p-2 bg-[#F0F2F5] flex flex-col gap-2 z-10">
+      <div className="p-2 pb-4 bg-[#F0F2F5]/80 backdrop-blur-md flex flex-col gap-2 z-10 relative">
         <AnimatePresence>
           {replyingTo && (
             <motion.div 
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 10 }}
-              className="bg-white p-3 rounded-xl border-l-4 border-[#A01249] flex justify-between items-center shadow-sm"
+              className="bg-white/90 p-3 rounded-2xl border-l-[6px] border-[#06D755] flex justify-between items-center shadow-lg mx-2 mb-1"
             >
               <div className="overflow-hidden">
-                <p className="text-[10px] font-bold text-[#A01249] uppercase">Replying to</p>
-                <p className="text-xs text-[#667781] truncate">{replyingTo.text}</p>
+                <p className="text-[12px] font-bold text-[#06D755]">Replying to</p>
+                <p className="text-[13px] text-[#667781] truncate">{replyingTo.text}</p>
               </div>
-              <button onClick={() => setReplyingTo(null)} className="text-[#667781] hover:text-[#111B21]">
-                <XCircle size={18} />
+              <button onClick={() => setReplyingTo(null)} className="text-[#667781] hover:text-[#111B21] ml-4">
+                <XCircle size={20} />
               </button>
             </motion.div>
           )}
         </AnimatePresence>
 
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <button 
-              onClick={() => setShowGamesMenu(!showGamesMenu)}
-              className={cn(
-                "p-2 rounded-full transition-colors",
-                showGamesMenu ? "bg-[#D1D7DB] text-[#A01249]" : "text-[#54656F] hover:bg-gray-200"
-              )}
-            >
-              <Plus size={24} />
+        <div className="flex items-end gap-2 px-1">
+          <div className="flex-1 bg-white rounded-[24px] flex items-end p-1.5 shadow-sm min-h-[48px]">
+            <button className="p-2.5 text-[#54656F] hover:bg-gray-100 rounded-full flex-shrink-0 transition-colors">
+              <Smile size={24} />
             </button>
-          
-          <AnimatePresence>
-            {showGamesMenu && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.8, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.8, y: 20 }}
-                className="absolute bottom-14 left-0 bg-white rounded-2xl shadow-2xl p-4 w-72 grid grid-cols-3 gap-4"
-              >
-                <div className="flex flex-col items-center gap-1 cursor-pointer hover:bg-gray-100 p-2 rounded-xl transition-colors">
-                  <div className="w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center text-white shadow-md">
-                    <Gamepad2 size={24} />
-                  </div>
-                  <span className="text-[10px] font-medium">Games</span>
-                </div>
-                {/* Add more attachment icons here if needed */}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+            
+            <form onSubmit={handleSendMessage} className="flex-1 px-1 mb-1.5">
+              <textarea
+                rows={1}
+                placeholder="Message"
+                className="w-full bg-transparent text-[16px] text-[#111B21] focus:outline-none resize-none max-h-32 py-1 placeholder:text-[#8696A0]"
+                value={newMessage}
+                onChange={(e) => {
+                  setNewMessage(e.target.value);
+                  e.target.style.height = 'auto';
+                  e.target.style.height = e.target.scrollHeight + 'px';
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    const enterIsSend = currentUser.userSettings?.enterIsSend ?? true; // Default to true if not set
+                    if (enterIsSend) {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }
+                  }
+                }}
+              />
+            </form>
 
-        <button className="text-[#54656F] p-2 hover:bg-gray-200 rounded-full"><Smile size={24} /></button>
-        
-        <form onSubmit={handleSendMessage} className="flex-1">
-          <input
-            type="text"
-            placeholder="Type a message"
-            className="w-full bg-white py-2 px-4 rounded-lg text-sm focus:outline-none"
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-          />
-        </form>
-
-        {newMessage.trim() ? (
-          <button 
-            onClick={() => handleSendMessage()}
-            className="p-2 text-[#A01249] hover:bg-gray-200 rounded-full"
-          >
-            <Send size={24} />
-          </button>
-        ) : recordedAudio ? (
-          <div className="flex items-center gap-2">
-            <button 
-              onClick={cancelRecording}
-              className="p-2 text-red-500 hover:bg-red-50 rounded-full"
-            >
-              <XCircle size={24} />
-            </button>
-            <div className="flex items-center gap-2 bg-[#FDE2E4] px-3 py-1.5 rounded-full">
+            <div className="flex items-center flex-shrink-0">
               <button 
-                onClick={togglePreviewPlayback}
-                className="p-1 text-[#A01249] hover:bg-white/50 rounded-full transition-colors"
+                onClick={() => setShowGamesMenu(!showGamesMenu)}
+                className={cn(
+                  "p-2.5 text-[#54656F] hover:bg-gray-100 rounded-full transition-colors",
+                  showGamesMenu && "text-[#00A884]"
+                )}
               >
-                {isPlayingPreview ? <Pause size={16} /> : <Play size={16} />}
+                <Plus size={24} className={cn("transition-transform duration-200", showGamesMenu && "rotate-45")} />
               </button>
-              <Mic size={16} className="text-[#A01249]" />
-              <span className="text-xs font-medium text-[#111B21]">Voice Ready</span>
+              
+              {!newMessage.trim() && (
+                <button className="p-2.5 text-[#54656F] hover:bg-gray-100 rounded-full flex-shrink-0 transition-colors">
+                  <Camera size={24} />
+                </button>
+              )}
             </div>
-            <button 
-              onClick={handleSendVoiceMessage}
-              className="p-2 text-[#A01249] hover:bg-[#FDE2E4] rounded-full"
-            >
-              <Send size={24} />
-            </button>
+            
+            <AnimatePresence>
+              {showGamesMenu && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.8, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.8, y: 20 }}
+                  className="absolute bottom-[70px] left-2 bg-white rounded-2xl shadow-2xl p-4 w-72 grid grid-cols-3 gap-4 border border-gray-100"
+                >
+                  <div 
+                    onClick={() => { navigate('/games'); setShowGamesMenu(false); }}
+                    className="flex flex-col items-center gap-1 cursor-pointer hover:bg-gray-50 p-2 rounded-xl transition-colors"
+                  >
+                    <div className="w-12 h-12 bg-pink-500 rounded-full flex items-center justify-center text-white shadow-md">
+                      <Gamepad2 size={24} />
+                    </div>
+                    <span className="text-[11px] font-medium text-[#54656F]">Games</span>
+                  </div>
+                  <div 
+                    onClick={() => { navigate('/wallet'); setShowGamesMenu(false); }}
+                    className="flex flex-col items-center gap-1 cursor-pointer hover:bg-gray-50 p-2 rounded-xl transition-colors"
+                  >
+                    <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center text-white shadow-md">
+                      <Wallet size={24} />
+                    </div>
+                    <span className="text-[11px] font-medium text-[#54656F]">Wallet</span>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            {isRecording && (
-              <div className="flex items-center gap-2 bg-red-100 px-3 py-1 rounded-full text-red-600 animate-pulse">
-                <div className="w-2 h-2 bg-red-600 rounded-full" />
-                <span className="text-xs font-mono">{Math.floor(recordingTime / 60)}:{String(recordingTime % 60).padStart(2, '0')}</span>
+
+          <div className="flex-shrink-0">
+            {newMessage.trim() ? (
+              <motion.button 
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                onClick={() => handleSendMessage()}
+                className="w-12 h-12 bg-[#00A884] text-white rounded-full flex items-center justify-center shadow-md active:scale-90 transition-transform"
+              >
+                <Send size={24} className="ml-1" fill="currentColor" />
+              </motion.button>
+            ) : recordedAudio ? (
+              <div className="flex items-center gap-2 bg-white rounded-full p-1 shadow-md">
+                <button 
+                  onClick={cancelRecording}
+                  className="p-2 text-red-500 hover:bg-red-50 rounded-full"
+                >
+                  <Trash2 size={22} />
+                </button>
+                <div className="flex items-center gap-2 bg-[#D9FDD3] px-3 py-1.5 rounded-full">
+                  <button 
+                    onClick={togglePreviewPlayback}
+                    className="p-1 text-[#008069] hover:bg-white/50 rounded-full transition-colors"
+                  >
+                    {isPlayingPreview ? <Pause size={18} /> : <Play size={18} />}
+                  </button>
+                </div>
+                <button 
+                  onClick={handleSendVoiceMessage}
+                  className="w-10 h-10 bg-[#00A884] text-white rounded-full flex items-center justify-center"
+                >
+                  <Send size={20} fill="currentColor" className="ml-0.5" />
+                </button>
               </div>
+            ) : (
+              <motion.button 
+                whileTap={{ scale: 0.9 }}
+                onClick={isRecording ? stopRecording : startRecording}
+                className={cn(
+                  "w-12 h-12 flex items-center justify-center rounded-full shadow-md transition-all",
+                  isRecording ? "bg-red-500 text-white scale-110" : "bg-[#00A884] text-white"
+                )}
+              >
+                {isRecording ? (
+                  <div className="flex flex-col items-center">
+                    <div className="w-3 h-3 bg-white rounded-sm mb-1 animate-pulse" />
+                    <span className="text-[8px] font-mono leading-none">{Math.floor(recordingTime / 60)}:{String(recordingTime % 60).padStart(2, '0')}</span>
+                  </div>
+                ) : (
+                  <Mic size={24} fill="currentColor" />
+                )}
+              </motion.button>
             )}
-            <button 
-              onClick={isRecording ? stopRecording : startRecording}
-              className={cn(
-                "p-2 rounded-full transition-all flex items-center justify-center",
-                isRecording ? "bg-red-500 text-white scale-110 shadow-lg" : "text-[#54656F] hover:bg-gray-200"
-              )}
-              title={isRecording ? "Stop Recording" : "Start Recording"}
-            >
-              {isRecording ? (
-                <div className="w-4 h-4 bg-white rounded-sm" />
-              ) : (
-                <Mic size={24} />
-              )}
-            </button>
           </div>
-        )}
+        </div>
       </div>
     </div>
 
@@ -1061,6 +1100,6 @@ export default function ChatWindow({ chat, currentUser, onBack, appSettings }: C
           </div>
         )}
       </AnimatePresence>
-    </div>
+    </>
   );
 }

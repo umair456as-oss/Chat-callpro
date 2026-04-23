@@ -24,6 +24,18 @@ export interface UserProfile {
   lastChatRewardTime?: number;
   badges?: string[];
   fcmToken?: string;
+  userSettings?: {
+    readReceipts: boolean;
+    enterIsSend: boolean;
+    mediaVisibility: boolean;
+    keepArchived: boolean;
+    conversationTones: boolean;
+    reminders: boolean;
+    highPriority: boolean;
+    increaseContrast: boolean;
+    theme: 'light' | 'dark' | 'system';
+    fontSize: 'small' | 'medium' | 'large';
+  };
 }
 
 export interface Message {

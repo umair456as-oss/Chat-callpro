@@ -75,7 +75,7 @@ export default function Status({ profile }: StatusProps) {
           <h2 className="text-xl font-bold text-[#111B21]">Status</h2>
           <button 
             onClick={() => setIsPostModalOpen(true)}
-            className="p-2 bg-[#700122] text-white rounded-full shadow-lg hover:bg-[#8E0E3D] transition-all"
+            className="p-2 bg-[#25D366] text-white rounded-full shadow-lg hover:bg-[#20bd5c] transition-all"
           >
             <Plus size={20} />
           </button>
@@ -90,7 +90,7 @@ export default function Status({ profile }: StatusProps) {
                 className="w-12 h-12 rounded-full border-2 border-gray-300 p-0.5" 
                 referrerPolicy="no-referrer"
               />
-              <div className="absolute bottom-0 right-0 bg-[#700122] text-white rounded-full p-0.5 border-2 border-white">
+              <div className="absolute bottom-0 right-0 bg-[#25D366] text-white rounded-full p-0.5 border-2 border-white">
                 <Plus size={12} />
               </div>
             </div>
@@ -100,7 +100,7 @@ export default function Status({ profile }: StatusProps) {
             </div>
           </div>
 
-          <div className="p-4 text-[10px] font-bold text-[#700122] uppercase tracking-widest bg-gray-50">
+          <div className="p-4 text-[10px] font-bold text-[#00A884] uppercase tracking-widest bg-gray-50 border-b border-gray-100">
             Recent Updates
           </div>
 
@@ -115,7 +115,7 @@ export default function Status({ profile }: StatusProps) {
                   "w-14 h-14 rounded-full p-0.5 border-2 transition-all duration-300",
                   s.views.includes(profile.uid) 
                     ? "border-gray-300" 
-                    : "border-transparent bg-gradient-to-tr from-[#700122] to-[#A01249] p-[2px]"
+                    : "border-transparent bg-gradient-to-tr from-[#25D366] to-[#00A884] p-[2px]"
                 )}>
                   <div className="w-full h-full rounded-full bg-white p-0.5">
                     <img 
@@ -235,14 +235,14 @@ export default function Status({ profile }: StatusProps) {
                   </button>
                 </div>
 
-                <div className="aspect-[9/16] bg-[#1e1e1e] rounded-2xl flex flex-col items-center justify-center border-2 border-dashed border-[#333333] group hover:border-[#700122] transition-colors cursor-pointer relative overflow-hidden">
-                  <Camera size={48} className="text-[#333333] group-hover:text-[#700122] transition-colors mb-4" />
-                  <p className="text-[#858585] text-sm group-hover:text-[#700122]">Tap to upload earning screenshot</p>
+                <div className="aspect-[9/16] bg-[#1e1e1e] rounded-2xl flex flex-col items-center justify-center border-2 border-dashed border-[#333333] group hover:border-[#25D366] transition-colors cursor-pointer relative overflow-hidden">
+                  <Camera size={48} className="text-[#333333] group-hover:text-[#25D366] transition-colors mb-4" />
+                  <p className="text-[#858585] text-sm group-hover:text-[#25D366]">Tap to upload earning screenshot</p>
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex flex-col justify-end p-6">
                     <input 
                       type="text"
                       placeholder="Add a caption..."
-                      className="w-full bg-white/10 backdrop-blur-md border border-white/20 rounded-xl px-4 py-3 text-white placeholder-white/50 outline-none focus:bg-white/20 transition-all"
+                      className="w-full bg-white/10 backdrop-blur-md border border-white/20 rounded-xl px-4 py-3 text-white placeholder-white/50 outline-none focus:bg-white/20 transition-all font-medium"
                       value={caption}
                       onChange={(e) => setCaption(e.target.value)}
                     />
@@ -252,9 +252,11 @@ export default function Status({ profile }: StatusProps) {
                 <button 
                   onClick={handlePostStatus}
                   disabled={loading || !caption.trim()}
-                  className="w-full bg-[#700122] text-white font-bold py-4 rounded-2xl shadow-lg hover:bg-[#8E0E3D] transition-all disabled:opacity-50"
+                  className="w-full bg-[#25D366] text-white font-bold py-4 rounded-2xl shadow-lg hover:bg-[#20bd5c] transition-all disabled:opacity-50 h-14 flex items-center justify-center"
                 >
-                  {loading ? 'Posting...' : 'Post Status'}
+                  {loading ? (
+                    <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : 'Post Status'}
                 </button>
               </div>
             </motion.div>

@@ -243,13 +243,13 @@ export default function Games({ profile }: GamesProps) {
               </span>
               <div className="w-24 h-1.5 bg-gray-200 rounded-full mt-1 overflow-hidden">
                 <div 
-                  className="h-full bg-[#700122]" 
+                  className="h-full bg-[#25D366]" 
                   style={{ width: `${(profile.experience || 0) % 1000 / 10}%` }}
                 ></div>
               </div>
             </div>
             <div className="bg-white px-6 py-3 rounded-2xl shadow-sm flex items-center gap-3 border border-[#D1D7DB]">
-              <div className="w-10 h-10 bg-red-50 rounded-full flex items-center justify-center text-[#700122]">
+              <div className="w-10 h-10 bg-green-50 rounded-full flex items-center justify-center text-[#075E54]">
                 <Trophy size={24} />
               </div>
               <div>
@@ -272,12 +272,12 @@ export default function Games({ profile }: GamesProps) {
                   whileHover={{ y: -5 }}
                   onClick={() => handleStartGame(game.id as GameType)}
                   className={cn(
-                    "bg-white rounded-3xl p-6 shadow-sm hover:shadow-xl transition-all cursor-pointer border border-transparent hover:border-[#A01249] group relative overflow-hidden",
+                    "bg-white rounded-3xl p-6 shadow-sm hover:shadow-xl transition-all cursor-pointer border border-transparent hover:border-[#25D366] group relative overflow-hidden",
                     setting && !setting.isEnabled && "opacity-50 grayscale cursor-not-allowed"
                   )}
                 >
                   {price > 0 && (
-                    <div className="absolute top-0 right-0 bg-[#A01249] text-white text-[8px] font-bold px-3 py-1 rounded-bl-xl shadow-sm">
+                    <div className="absolute top-0 right-0 bg-[#075E54] text-white text-[8px] font-bold px-3 py-1 rounded-bl-xl shadow-sm">
                       Rs. {price}
                     </div>
                   )}
@@ -285,7 +285,7 @@ export default function Games({ profile }: GamesProps) {
                     <game.icon size={32} />
                   </div>
                   <h3 className="text-lg font-bold text-[#111B21] mb-1">{game.name}</h3>
-                  <p className="text-xs text-[#700122] font-bold mb-4">
+                  <p className="text-xs text-[#00A884] font-bold mb-4">
                     {reward > 0 ? `Earn Rs. ${reward}` : 'Play & Earn'}
                   </p>
                   <div className="flex items-center gap-2 text-[#667781] text-[10px] uppercase font-bold">
@@ -308,7 +308,7 @@ export default function Games({ profile }: GamesProps) {
                 </button>
                 <h2 className="font-bold text-[#111B21]">{games.find(g => g.id === activeGame)?.name}</h2>
               </div>
-              <div className="flex items-center gap-2 text-sm font-bold text-[#700122]">
+              <div className="flex items-center gap-2 text-sm font-bold text-[#008069]">
                 <Coins size={16} />
                 Rs. {profile.balance.toFixed(2)}
               </div>
@@ -326,18 +326,18 @@ export default function Games({ profile }: GamesProps) {
                   >
                     <div className={cn(
                       "w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg",
-                      gameResult.success ? "bg-red-50 text-[#700122]" : "bg-red-100 text-red-600"
+                      gameResult.success ? "bg-green-50 text-[#075E54]" : "bg-red-50 text-red-600"
                     )}>
                       {gameResult.success ? <Trophy size={48} /> : <Star size={48} />}
                     </div>
-                    <h2 className="text-3xl font-bold mb-2">{gameResult.success ? 'Winner!' : 'Oops!'}</h2>
-                    <p className="text-[#667781] mb-8">{gameResult.message}</p>
+                    <h2 className="text-3xl font-bold mb-2 text-[#111B21]">{gameResult.success ? 'Winner!' : 'Oops!'}</h2>
+                    <p className="text-[#667781] mb-8 font-medium">{gameResult.message}</p>
                     <button
                       onClick={() => {
                         setGameResult(null);
                         setGameSessionId(prev => prev + 1);
                       }}
-                      className="bg-[#700122] text-white font-bold py-3 px-8 rounded-xl shadow-lg hover:bg-[#500118] transition-all"
+                      className="bg-[#25D366] text-white font-bold py-4 px-12 rounded-2xl shadow-xl hover:bg-[#20bd5c] transition-all transform active:scale-95"
                     >
                       Play Again
                     </button>
@@ -415,8 +415,8 @@ function LuckySpin({ onWin, loading, onRestart }: { onWin: (reward: number) => v
       <motion.div
         animate={{ rotate: rotation }}
         transition={{ duration: 4, ease: "circOut" }}
-        className="w-64 h-64 rounded-full border-8 border-[#700122] relative overflow-hidden shadow-2xl mb-8"
-        style={{ background: 'conic-gradient(#A01249 0deg 60deg, #A01249 60deg 120deg, #700122 120deg 180deg, #8E0E3D 180deg 240deg, #500118 240deg 300deg, #700122 300deg 360deg)' }}
+        className="w-64 h-64 rounded-full border-8 border-[#075E54] relative overflow-hidden shadow-2xl mb-8"
+        style={{ background: 'conic-gradient(#25D366 0deg 60deg, #128C7E 60deg 120deg, #075E54 120deg 180deg, #00A884 180deg 240deg, #075E54 240deg 300deg, #128C7E 300deg 360deg)' }}
       >
         {[0, 60, 120, 180, 240, 300].map((deg, i) => (
           <div key={i} className="absolute w-full h-full flex justify-center pt-4" style={{ transform: `rotate(${deg + 30}deg)` }}>
@@ -427,11 +427,11 @@ function LuckySpin({ onWin, loading, onRestart }: { onWin: (reward: number) => v
           <div className="w-12 h-12 bg-white rounded-full shadow-inner z-10"></div>
         </div>
       </motion.div>
-      <div className="absolute top-[50%] right-[50%] translate-x-[50%] translate-y-[-140px] w-0 h-0 border-l-[15px] border-l-transparent border-r-[15px] border-r-transparent border-t-[30px] border-t-red-600 z-20"></div>
+      <div className="absolute top-[50%] right-[50%] translate-x-[50%] translate-y-[-140px] w-0 h-0 border-l-[15px] border-l-transparent border-r-[15px] border-r-transparent border-t-[30px] border-t-[#075E54] z-20"></div>
       <button
         onClick={spin}
         disabled={spinning || loading}
-        className="bg-[#700122] text-white font-bold py-4 px-12 rounded-2xl shadow-xl hover:bg-[#500118] transition-all disabled:opacity-50"
+        className="bg-[#25D366] text-white font-bold py-4 px-12 rounded-2xl shadow-xl hover:bg-[#20bd5c] transition-all disabled:opacity-50"
       >
         {spinning ? 'Spinning...' : 'Spin Now!'}
       </button>
