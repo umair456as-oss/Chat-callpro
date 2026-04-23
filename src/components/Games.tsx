@@ -243,13 +243,13 @@ export default function Games({ profile }: GamesProps) {
               </span>
               <div className="w-24 h-1.5 bg-gray-200 rounded-full mt-1 overflow-hidden">
                 <div 
-                  className="h-full bg-[#00A884]" 
+                  className="h-full bg-[#700122]" 
                   style={{ width: `${(profile.experience || 0) % 1000 / 10}%` }}
                 ></div>
               </div>
             </div>
             <div className="bg-white px-6 py-3 rounded-2xl shadow-sm flex items-center gap-3 border border-[#D1D7DB]">
-              <div className="w-10 h-10 bg-[#D9FDD3] rounded-full flex items-center justify-center text-[#00A884]">
+              <div className="w-10 h-10 bg-red-50 rounded-full flex items-center justify-center text-[#700122]">
                 <Trophy size={24} />
               </div>
               <div>
@@ -272,12 +272,12 @@ export default function Games({ profile }: GamesProps) {
                   whileHover={{ y: -5 }}
                   onClick={() => handleStartGame(game.id as GameType)}
                   className={cn(
-                    "bg-white rounded-3xl p-6 shadow-sm hover:shadow-xl transition-all cursor-pointer border border-transparent hover:border-[#00A884] group relative overflow-hidden",
+                    "bg-white rounded-3xl p-6 shadow-sm hover:shadow-xl transition-all cursor-pointer border border-transparent hover:border-[#A01249] group relative overflow-hidden",
                     setting && !setting.isEnabled && "opacity-50 grayscale cursor-not-allowed"
                   )}
                 >
                   {price > 0 && (
-                    <div className="absolute top-0 right-0 bg-orange-500 text-white text-[8px] font-bold px-3 py-1 rounded-bl-xl shadow-sm">
+                    <div className="absolute top-0 right-0 bg-[#A01249] text-white text-[8px] font-bold px-3 py-1 rounded-bl-xl shadow-sm">
                       Rs. {price}
                     </div>
                   )}
@@ -285,7 +285,7 @@ export default function Games({ profile }: GamesProps) {
                     <game.icon size={32} />
                   </div>
                   <h3 className="text-lg font-bold text-[#111B21] mb-1">{game.name}</h3>
-                  <p className="text-xs text-[#00A884] font-bold mb-4">
+                  <p className="text-xs text-[#700122] font-bold mb-4">
                     {reward > 0 ? `Earn Rs. ${reward}` : 'Play & Earn'}
                   </p>
                   <div className="flex items-center gap-2 text-[#667781] text-[10px] uppercase font-bold">
@@ -308,7 +308,7 @@ export default function Games({ profile }: GamesProps) {
                 </button>
                 <h2 className="font-bold text-[#111B21]">{games.find(g => g.id === activeGame)?.name}</h2>
               </div>
-              <div className="flex items-center gap-2 text-sm font-bold text-[#00A884]">
+              <div className="flex items-center gap-2 text-sm font-bold text-[#700122]">
                 <Coins size={16} />
                 Rs. {profile.balance.toFixed(2)}
               </div>
@@ -326,7 +326,7 @@ export default function Games({ profile }: GamesProps) {
                   >
                     <div className={cn(
                       "w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg",
-                      gameResult.success ? "bg-[#D9FDD3] text-[#00A884]" : "bg-red-100 text-red-600"
+                      gameResult.success ? "bg-red-50 text-[#700122]" : "bg-red-100 text-red-600"
                     )}>
                       {gameResult.success ? <Trophy size={48} /> : <Star size={48} />}
                     </div>
@@ -337,7 +337,7 @@ export default function Games({ profile }: GamesProps) {
                         setGameResult(null);
                         setGameSessionId(prev => prev + 1);
                       }}
-                      className="bg-[#00A884] text-white font-bold py-3 px-8 rounded-xl shadow-lg hover:bg-[#008F6F] transition-all"
+                      className="bg-[#700122] text-white font-bold py-3 px-8 rounded-xl shadow-lg hover:bg-[#500118] transition-all"
                     >
                       Play Again
                     </button>
@@ -415,8 +415,8 @@ function LuckySpin({ onWin, loading, onRestart }: { onWin: (reward: number) => v
       <motion.div
         animate={{ rotate: rotation }}
         transition={{ duration: 4, ease: "circOut" }}
-        className="w-64 h-64 rounded-full border-8 border-[#00A884] relative overflow-hidden shadow-2xl mb-8"
-        style={{ background: 'conic-gradient(#25D366 0deg 60deg, #34B7F1 60deg 120deg, #FFD700 120deg 180deg, #FF4B2B 180deg 240deg, #8E44AD 240deg 300deg, #F39C12 300deg 360deg)' }}
+        className="w-64 h-64 rounded-full border-8 border-[#700122] relative overflow-hidden shadow-2xl mb-8"
+        style={{ background: 'conic-gradient(#A01249 0deg 60deg, #A01249 60deg 120deg, #700122 120deg 180deg, #8E0E3D 180deg 240deg, #500118 240deg 300deg, #700122 300deg 360deg)' }}
       >
         {[0, 60, 120, 180, 240, 300].map((deg, i) => (
           <div key={i} className="absolute w-full h-full flex justify-center pt-4" style={{ transform: `rotate(${deg + 30}deg)` }}>
@@ -431,7 +431,7 @@ function LuckySpin({ onWin, loading, onRestart }: { onWin: (reward: number) => v
       <button
         onClick={spin}
         disabled={spinning || loading}
-        className="bg-[#00A884] text-white font-bold py-4 px-12 rounded-2xl shadow-xl hover:bg-[#008F6F] transition-all disabled:opacity-50"
+        className="bg-[#700122] text-white font-bold py-4 px-12 rounded-2xl shadow-xl hover:bg-[#500118] transition-all disabled:opacity-50"
       >
         {spinning ? 'Spinning...' : 'Spin Now!'}
       </button>
@@ -481,7 +481,7 @@ function MathQuiz({ onWin, loading, onRestart }: { onWin: (reward: number) => vo
   return (
     <div className="text-center">
       <div className="flex items-center justify-center gap-4 mb-8">
-        <div className="w-16 h-16 bg-[#D9FDD3] rounded-2xl flex items-center justify-center text-[#00A884] text-2xl font-bold shadow-sm">
+        <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center text-[#700122] text-2xl font-bold shadow-sm">
           <Clock size={24} className="mr-2" />
           {timeLeft}s
         </div>
@@ -493,14 +493,14 @@ function MathQuiz({ onWin, loading, onRestart }: { onWin: (reward: number) => vo
         <input
           type="number"
           autoFocus
-          className="text-4xl text-center border-b-4 border-[#00A884] p-4 focus:outline-none bg-transparent"
+          className="text-4xl text-center border-b-4 border-[#700122] p-4 focus:outline-none bg-transparent"
           value={userAns}
           onChange={(e) => setUserAns(e.target.value)}
         />
         <button
           type="submit"
           disabled={loading}
-          className="bg-[#00A884] text-white font-bold py-4 px-12 rounded-2xl shadow-xl hover:bg-[#008F6F] transition-all"
+          className="bg-[#700122] text-white font-bold py-4 px-12 rounded-2xl shadow-xl hover:bg-[#500118] transition-all"
         >
           Submit Answer
         </button>
@@ -582,9 +582,9 @@ function ScratchWin({ onWin, loading, onRestart }: { onWin: (reward: number) => 
 
   return (
     <div className="text-center">
-      <div className="relative w-[300px] h-[150px] mx-auto mb-8 bg-[#D9FDD3] rounded-xl flex items-center justify-center border-4 border-dashed border-[#00A884]">
+      <div className="relative w-[300px] h-[150px] mx-auto mb-8 bg-red-50 rounded-xl flex items-center justify-center border-4 border-dashed border-[#700122]">
         <div className="text-center">
-          <p className="text-[#00A884] font-bold text-sm uppercase">You Won</p>
+          <p className="text-[#700122] font-bold text-sm uppercase">You Won</p>
           <h2 className="text-4xl font-black text-[#111B21]">Rs. {rewardAmount}</h2>
         </div>
         <canvas ref={canvasRef} width={300} height={150} className="absolute inset-0 cursor-crosshair rounded-lg" />
@@ -627,7 +627,7 @@ function DailyCheckin({ onWin, loading, profile, onRestart }: { onWin: (reward: 
 
   return (
     <div className="text-center">
-      <div className="w-32 h-32 bg-[#D9FDD3] rounded-full flex items-center justify-center text-[#00A884] mx-auto mb-8 shadow-inner">
+      <div className="w-32 h-32 bg-red-50 rounded-full flex items-center justify-center text-[#700122] mx-auto mb-8 shadow-inner">
         <Calendar size={64} />
       </div>
       <h2 className="text-3xl font-bold text-[#111B21] mb-2">Daily Reward</h2>
@@ -635,7 +635,7 @@ function DailyCheckin({ onWin, loading, profile, onRestart }: { onWin: (reward: 
       <button
         onClick={() => onWin(10)}
         disabled={!canCheckin || loading}
-        className="bg-[#00A884] text-white font-bold py-4 px-12 rounded-2xl shadow-xl hover:bg-[#008F6F] transition-all disabled:opacity-50"
+        className="bg-[#700122] text-white font-bold py-4 px-12 rounded-2xl shadow-xl hover:bg-[#500118] transition-all disabled:opacity-50"
       >
         {canCheckin ? 'Claim Rs. 10' : 'Already Claimed'}
       </button>
@@ -671,7 +671,7 @@ function DiceRoller({ onWin, loading, onRestart }: { onWin: (reward: number) => 
       <motion.div
         animate={rolling ? { rotate: [0, 90, 180, 270, 360], scale: [1, 1.2, 1] } : {}}
         transition={{ duration: 0.5, repeat: rolling ? Infinity : 0 }}
-        className="w-32 h-32 bg-white border-4 border-[#00A884] rounded-3xl mx-auto mb-12 shadow-2xl flex items-center justify-center relative"
+        className="w-32 h-32 bg-white border-4 border-[#700122] rounded-3xl mx-auto mb-12 shadow-2xl flex items-center justify-center relative"
       >
         <div className="grid grid-cols-3 gap-2 p-4">
           {[...Array(9)].map((_, i) => {
@@ -693,7 +693,7 @@ function DiceRoller({ onWin, loading, onRestart }: { onWin: (reward: number) => 
       <button
         onClick={roll}
         disabled={rolling || loading}
-        className="bg-[#00A884] text-white font-bold py-4 px-12 rounded-2xl shadow-xl hover:bg-[#008F6F] transition-all disabled:opacity-50"
+        className="bg-[#700122] text-white font-bold py-4 px-12 rounded-2xl shadow-xl hover:bg-[#500118] transition-all disabled:opacity-50"
       >
         {rolling ? 'Rolling...' : 'Roll Dice'}
       </button>
@@ -728,19 +728,19 @@ function WordScramble({ onWin, loading, onRestart }: { onWin: (reward: number) =
 
   return (
     <div className="text-center">
-      <h2 className="text-5xl font-black text-[#00A884] mb-8 tracking-widest uppercase">{scrambled}</h2>
+      <h2 className="text-5xl font-black text-[#700122] mb-8 tracking-widest uppercase">{scrambled}</h2>
       <form onSubmit={check} className="flex flex-col gap-4">
         <input
           type="text"
           placeholder="Unscramble the word"
-          className="text-2xl text-center border-b-4 border-[#00A884] p-4 focus:outline-none bg-transparent uppercase"
+          className="text-2xl text-center border-b-4 border-[#700122] p-4 focus:outline-none bg-transparent uppercase"
           value={input}
           onChange={(e) => setInput(e.target.value)}
         />
         <button
           type="submit"
           disabled={loading}
-          className="bg-[#00A884] text-white font-bold py-4 px-12 rounded-2xl shadow-xl hover:bg-[#008F6F] transition-all"
+          className="bg-[#700122] text-white font-bold py-4 px-12 rounded-2xl shadow-xl hover:bg-[#500118] transition-all"
         >
           Submit
         </button>
@@ -784,14 +784,14 @@ function CaptchaSolver({ onWin, loading, onRestart }: { onWin: (reward: number) 
         <input
           type="text"
           placeholder="Type the code"
-          className="text-2xl text-center border-b-4 border-[#00A884] p-4 focus:outline-none bg-transparent uppercase"
+          className="text-2xl text-center border-b-4 border-[#700122] p-4 focus:outline-none bg-transparent uppercase"
           value={input}
           onChange={(e) => setInput(e.target.value)}
         />
         <button
           type="submit"
           disabled={loading}
-          className="bg-[#00A884] text-white font-bold py-4 px-12 rounded-2xl shadow-xl hover:bg-[#008F6F] transition-all"
+          className="bg-[#700122] text-white font-bold py-4 px-12 rounded-2xl shadow-xl hover:bg-[#500118] transition-all"
         >
           Verify
         </button>
@@ -823,13 +823,13 @@ function CoinFlip({ onWin, loading, onRestart }: { onWin: (reward: number) => vo
       <div className="flex gap-4 mb-12 justify-center">
         <button
           onClick={() => setBet('heads')}
-          className={cn("px-6 py-2 rounded-full font-bold transition-all", bet === 'heads' ? "bg-[#00A884] text-white shadow-lg" : "bg-gray-200 text-[#54656F]")}
+          className={cn("px-6 py-2 rounded-full font-bold transition-all", bet === 'heads' ? "bg-[#700122] text-white shadow-lg" : "bg-gray-200 text-[#54656F]")}
         >
           Heads
         </button>
         <button
           onClick={() => setBet('tails')}
-          className={cn("px-6 py-2 rounded-full font-bold transition-all", bet === 'tails' ? "bg-[#00A884] text-white shadow-lg" : "bg-gray-200 text-[#54656F]")}
+          className={cn("px-6 py-2 rounded-full font-bold transition-all", bet === 'tails' ? "bg-[#700122] text-white shadow-lg" : "bg-gray-200 text-[#54656F]")}
         >
           Tails
         </button>
@@ -846,7 +846,7 @@ function CoinFlip({ onWin, loading, onRestart }: { onWin: (reward: number) => vo
       <button
         onClick={flip}
         disabled={flipping || loading}
-        className="bg-[#00A884] text-white font-bold py-4 px-12 rounded-2xl shadow-xl hover:bg-[#008F6F] transition-all disabled:opacity-50"
+        className="bg-[#700122] text-white font-bold py-4 px-12 rounded-2xl shadow-xl hover:bg-[#500118] transition-all disabled:opacity-50"
       >
         {flipping ? 'Flipping...' : 'Flip Coin'}
       </button>
@@ -899,7 +899,7 @@ function MemoryMatch({ onWin, loading, onRestart }: { onWin: (reward: number) =>
           onClick={() => handleFlip(card.id)}
           className={cn(
             "w-16 h-16 rounded-xl cursor-pointer transition-all duration-500 flex items-center justify-center shadow-md",
-            flipped.includes(card.id) || matched.includes(card.id) ? "bg-[#D9FDD3] text-[#00A884] rotate-y-180" : "bg-[#00A884] text-white"
+            flipped.includes(card.id) || matched.includes(card.id) ? "bg-red-50 text-[#700122] rotate-y-180" : "bg-[#700122] text-white"
           )}
         >
           {(flipped.includes(card.id) || matched.includes(card.id)) ? <card.Icon size={32} /> : <Zap size={24} />}
@@ -1012,19 +1012,19 @@ function WatchEarn({ onWin, loading, onRestart }: { onWin: (reward: number) => v
                 (!adReady || loading) && "opacity-50 cursor-not-allowed"
               )}
             >
-              <PlayCircle size={80} className={cn(adReady && "text-[#00A884] animate-pulse")} />
+              <PlayCircle size={80} className={cn(adReady && "text-[#700122] animate-pulse")} />
               <span className="font-bold text-lg">{adReady ? 'Watch Ad to Earn' : 'Loading Ad...'}</span>
             </button>
           </div>
         ) : (
           <div className="text-white text-center">
-            <div className="w-16 h-16 border-4 border-[#00A884] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <div className="w-16 h-16 border-4 border-[#700122] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
             <p className="text-sm font-bold mb-2">Ad in Progress...</p>
           </div>
         )}
       </div>
       <div className="bg-white/50 backdrop-blur-sm p-4 rounded-2xl border border-white/20 shadow-sm">
-        <div className="flex items-center justify-center gap-2 text-[#00A884] font-bold mb-1">
+        <div className="flex items-center justify-center gap-2 text-[#700122] font-bold mb-1">
           <Trophy size={16} />
           <span>Reward: Rs. {(appSettings?.adEarningRate || 5).toFixed(2)}</span>
         </div>

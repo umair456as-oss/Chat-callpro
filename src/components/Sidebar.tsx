@@ -1,26 +1,29 @@
 import { motion } from 'motion/react';
 import { MessageCircle, Wallet, Gamepad2, ShieldCheck, LogOut, CircleDashed, Users } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { auth } from '../firebase';
 import { UserProfile } from '../types';
 import { cn } from '../utils';
 
 interface SidebarProps {
-  activeTab: 'chats' | 'status' | 'wallet' | 'games' | 'admin' | 'contacts';
-  setActiveTab: (tab: 'chats' | 'status' | 'wallet' | 'games' | 'admin' | 'contacts') => void;
   profile: UserProfile;
 }
 
-export default function Sidebar({ activeTab, setActiveTab, profile }: SidebarProps) {
+export default function Sidebar({ profile }: SidebarProps) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const currentPath = location.pathname;
+
   return (
     <div className="fixed-footer w-full bg-[#F0F2F5] border-t border-[#D1D7DB] flex flex-row items-center py-2 justify-around z-50">
       <div className="flex flex-row items-center justify-around w-full">
         <motion.button
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
-          onClick={() => setActiveTab('chats')}
+          onClick={() => navigate('/')}
           className={cn(
             "p-2 rounded-full transition-colors flex flex-col items-center gap-1",
-            activeTab === 'chats' ? "bg-[#D9FDD3] text-[#00A884]" : "text-[#54656F] hover:bg-gray-200"
+            currentPath === '/' ? "bg-[#FDE2E4] text-[#700122]" : "text-[#54656F] hover:bg-gray-200"
           )}
           title="Chats"
         >
@@ -31,10 +34,10 @@ export default function Sidebar({ activeTab, setActiveTab, profile }: SidebarPro
         <motion.button
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
-          onClick={() => setActiveTab('contacts')}
+          onClick={() => navigate('/contacts')}
           className={cn(
             "p-2 rounded-full transition-colors flex flex-col items-center gap-1",
-            activeTab === 'contacts' ? "bg-[#D9FDD3] text-[#00A884]" : "text-[#54656F] hover:bg-gray-200"
+            currentPath === '/contacts' ? "bg-[#FDE2E4] text-[#700122]" : "text-[#54656F] hover:bg-gray-200"
           )}
           title="Contacts"
         >
@@ -45,10 +48,10 @@ export default function Sidebar({ activeTab, setActiveTab, profile }: SidebarPro
         <motion.button
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
-          onClick={() => setActiveTab('status')}
+          onClick={() => navigate('/status')}
           className={cn(
             "p-2 rounded-full transition-colors flex flex-col items-center gap-1",
-            activeTab === 'status' ? "bg-[#D9FDD3] text-[#00A884]" : "text-[#54656F] hover:bg-gray-200"
+            currentPath === '/status' ? "bg-[#FDE2E4] text-[#700122]" : "text-[#54656F] hover:bg-gray-200"
           )}
           title="Status"
         >
@@ -59,10 +62,10 @@ export default function Sidebar({ activeTab, setActiveTab, profile }: SidebarPro
         <motion.button
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
-          onClick={() => setActiveTab('wallet')}
+          onClick={() => navigate('/wallet')}
           className={cn(
             "p-2 rounded-full transition-colors flex flex-col items-center gap-1",
-            activeTab === 'wallet' ? "bg-[#D9FDD3] text-[#00A884]" : "text-[#54656F] hover:bg-gray-200"
+            currentPath === '/wallet' ? "bg-[#FDE2E4] text-[#700122]" : "text-[#54656F] hover:bg-gray-200"
           )}
           title="Wallet"
         >
@@ -73,10 +76,10 @@ export default function Sidebar({ activeTab, setActiveTab, profile }: SidebarPro
         <motion.button
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
-          onClick={() => setActiveTab('games')}
+          onClick={() => navigate('/games')}
           className={cn(
             "p-2 rounded-full transition-colors flex flex-col items-center gap-1",
-            activeTab === 'games' ? "bg-[#D9FDD3] text-[#00A884]" : "text-[#54656F] hover:bg-gray-200"
+            currentPath === '/games' ? "bg-[#FDE2E4] text-[#700122]" : "text-[#54656F] hover:bg-gray-200"
           )}
           title="Games"
         >
@@ -88,10 +91,10 @@ export default function Sidebar({ activeTab, setActiveTab, profile }: SidebarPro
           <motion.button
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
-            onClick={() => setActiveTab('admin')}
+            onClick={() => navigate('/admin')}
             className={cn(
               "p-2 rounded-full transition-colors flex flex-col items-center gap-1",
-              activeTab === 'admin' ? "bg-[#D9FDD3] text-[#00A884]" : "text-[#54656F] hover:bg-gray-200"
+              currentPath === '/admin' ? "bg-[#FDE2E4] text-[#700122]" : "text-[#54656F] hover:bg-gray-200"
             )}
             title="Admin Panel"
           >

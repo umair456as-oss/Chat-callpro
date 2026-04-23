@@ -518,21 +518,21 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
       >
         <button 
           onClick={() => setActiveTab('users')}
-          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'users' ? "text-white border-l-2 border-blue-500" : "text-[#858585] hover:text-white")}
+          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'users' ? "text-white border-l-2 border-[#700122]" : "text-[#858585] hover:text-white")}
           title="Users Explorer"
         >
           <Users size={20} />
         </button>
         <button 
           onClick={() => setActiveTab('withdrawals')}
-          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'withdrawals' ? "text-white border-l-2 border-blue-500" : "text-[#858585] hover:text-white")}
+          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'withdrawals' ? "text-white border-l-2 border-[#700122]" : "text-[#858585] hover:text-white")}
           title="Finance Grid"
         >
           <Wallet size={20} />
         </button>
         <button 
           onClick={() => setActiveTab('games')}
-          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'games' ? "text-white border-l-2 border-blue-500" : "text-[#858585] hover:text-white")}
+          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'games' ? "text-white border-l-2 border-[#700122]" : "text-[#858585] hover:text-white")}
           title="Game Management"
         >
           <Gamepad2 size={20} />
@@ -553,21 +553,21 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
         </button>
         <button 
           onClick={() => setActiveTab('analytics')}
-          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'analytics' ? "text-white border-l-2 border-blue-500" : "text-[#858585] hover:text-white")}
+          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'analytics' ? "text-white border-l-2 border-[#700122]" : "text-[#858585] hover:text-white")}
           title="Analytics"
         >
           <TrendingUp size={20} />
         </button>
         <button 
           onClick={() => setActiveTab('announcements')}
-          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'announcements' ? "text-white border-l-2 border-blue-500" : "text-[#858585] hover:text-white")}
+          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'announcements' ? "text-white border-l-2 border-[#700122]" : "text-[#858585] hover:text-white")}
           title="Announcements"
         >
           <Bell size={20} />
         </button>
         <button 
           onClick={() => setActiveTab('settings')}
-          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'settings' ? "text-white border-l-2 border-blue-500" : "text-[#858585] hover:text-white")}
+          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'settings' ? "text-white border-l-2 border-[#700122]" : "text-[#858585] hover:text-white")}
           title="Global Settings"
         >
           <Settings size={20} />
@@ -582,7 +582,7 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
         <div className="mt-auto pb-4 flex flex-col gap-4">
           <button 
             onClick={() => setActiveTab('logs')}
-            className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'logs' ? "text-white border-l-2 border-blue-500" : "text-[#858585] hover:text-white")}
+            className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'logs' ? "text-white border-l-2 border-[#700122]" : "text-[#858585] hover:text-white")}
             title="System Logs"
           >
             <Activity size={20} />
@@ -606,7 +606,7 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
         <header className="h-10 bg-[#252526] border-b border-[#2b2b2b] flex items-center justify-between px-4 text-xs">
           <div className="flex items-center gap-4">
             <span className="flex items-center gap-2">
-              <ShieldCheck size={14} className="text-blue-500" />
+              <ShieldCheck size={14} className="text-[#A01249]" />
               alpha_admin_terminal.exe
             </span>
             <div className="h-4 w-px bg-[#333333]"></div>
@@ -636,14 +636,14 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
               >
                 <div className="flex flex-row justify-between items-center gap-4">
                   <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                    <Users size={20} className="text-blue-400" />
+                    <Users size={20} className="text-[#A01249]" />
                     User Command Center
                   </h2>
                   <div className="relative w-72">
                     <input
                       type="text"
                       placeholder="Search by email, name, or phone..."
-                      className="w-full bg-[#3c3c3c] border border-[#3c3c3c] focus:border-blue-500 py-1.5 pl-10 pr-4 rounded text-sm text-white outline-none transition-all"
+                      className="w-full bg-[#3c3c3c] border border-[#3c3c3c] focus:border-[#700122] py-1.5 pl-10 pr-4 rounded text-sm text-white outline-none transition-all"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                     />
@@ -684,9 +684,9 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
                                         type="text"
                                         value={u.displayName || ''}
                                         onChange={(e) => updateDoc(doc(db, 'users', u.uid), { displayName: e.target.value })}
-                                        className="bg-transparent border-b border-transparent hover:border-[#333333] focus:border-blue-500 outline-none text-xs font-bold text-white w-32"
+                                        className="bg-transparent border-b border-transparent hover:border-[#333333] focus:border-[#700122] outline-none text-xs font-bold text-white w-32"
                                       />
-                                      {u.isVerified && <BadgeCheck size={14} className="text-blue-400" />}
+                                      {u.isVerified && <BadgeCheck size={14} className="text-[#A01249]" />}
                                     </div>
                                     <div className="text-[#858585] text-[10px]">{u.email}</div>
                                   </div>
@@ -730,7 +730,7 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
                               <td className="px-4 py-3">
                                 <div className="w-16 h-1.5 bg-[#333333] rounded-full overflow-hidden">
                                   <div 
-                                    className={cn("h-full transition-all", (u.clickSpeed || 0) > 8 ? "bg-red-500" : "bg-blue-500")}
+                                    className={cn("h-full transition-all", (u.clickSpeed || 0) > 8 ? "bg-red-500" : "bg-[#700122]")}
                                     style={{ width: `${Math.min((u.clickSpeed || 0) * 10, 100)}%` }}
                                   />
                                 </div>
@@ -1114,7 +1114,7 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
                         <button 
                           onClick={handleSaveCode}
                           disabled={isSaving}
-                          className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-1.5 rounded text-xs font-bold flex items-center gap-2 transition-all"
+                          className="bg-[#700122] hover:bg-[#8E0E3D] disabled:opacity-50 text-white px-4 py-1.5 rounded text-xs font-bold flex items-center gap-2 transition-all"
                         >
                           {isSaving ? <Clock size={14} className="animate-spin" /> : <Save size={14} />} 
                           Save & Go Live
@@ -1157,7 +1157,7 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
               className="space-y-6"
             >
               <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                <TrendingUp size={20} className="text-blue-400" />
+                <TrendingUp size={20} className="text-[#A01249]" />
                 Revenue & Performance Analytics
               </h2>
               <div className="grid grid-cols-4 gap-4">
@@ -1171,7 +1171,7 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
                 </div>
                 <div className="bg-[#252526] p-4 rounded border border-[#333333]">
                   <div className="text-[#858585] text-[10px] uppercase font-bold mb-1">Active Users (5m)</div>
-                  <div className="text-xl font-bold text-blue-400">{users.filter(u => u.lastSeen && (Date.now() - getTime(u.lastSeen) < 300000)).length}</div>
+                  <div className="text-xl font-bold text-[#A01249]">{users.filter(u => u.lastSeen && (Date.now() - getTime(u.lastSeen) < 300000)).length}</div>
                 </div>
                 <div className="bg-[#252526] p-4 rounded border border-[#333333]">
                   <div className="text-[#858585] text-[10px] uppercase font-bold mb-1">Net Profit</div>
@@ -1245,10 +1245,10 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
 
                     <div className="flex justify-between items-center text-xs">
                       <span className="text-[#858585]">Memory Usage</span>
-                      <span className="text-blue-400 font-mono">1.2GB / 4GB</span>
+                      <span className="text-[#A01249] font-mono">1.2GB / 4GB</span>
                     </div>
                     <div className="w-full bg-[#333333] h-1 rounded-full overflow-hidden">
-                      <div className="bg-blue-500 h-full w-[30%]"></div>
+                      <div className="bg-[#700122] h-full w-[30%]"></div>
                     </div>
 
                     <div className="flex justify-between items-center text-xs">
@@ -1260,7 +1260,7 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
 
                 <div className="bg-[#252526] rounded border border-[#333333] p-6">
                   <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
-                    <Users size={16} className="text-blue-400" />
+                    <Users size={16} className="text-[#A01249]" />
                     User Engagement Stats
                   </h3>
                   <div className="grid grid-cols-2 gap-4">
@@ -1270,7 +1270,7 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
                     </div>
                     <div className="p-3 bg-[#1e1e1e] rounded border border-[#333333]">
                       <div className="text-[10px] text-[#858585] uppercase font-bold mb-1">New Today</div>
-                      <div className="text-lg font-bold text-blue-400">
+                      <div className="text-lg font-bold text-[#A01249]">
                         {users.filter(u => u.createdAt && (Date.now() - getTime(u.createdAt) < 86400000)).length}
                       </div>
                     </div>
@@ -2225,6 +2225,30 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
             )}
           </AnimatePresence>
         </div>
+
+        {/* Activity Terminal Footer */}
+        <div className="bg-[#007acc] h-6 flex flex-row items-center px-4 justify-between text-[10px] text-white shrink-0 overflow-x-auto custom-scrollbar scrollbar-hide whitespace-nowrap">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1">
+              <Activity size={12} />
+              <span>Live Activity Terminal</span>
+            </div>
+            <div className="flex items-center gap-1 text-blue-100">
+              <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+              <span>System Online</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-4 ml-4">
+            <div className="flex items-center gap-1">
+              <Shield size={12} />
+              <span>Fraud Protection: Active</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <TrendingUp size={12} />
+              <span>Revenue: Rs. {revenueStats[0]?.totalRevenue || 0}</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* User Edit Modal */}
@@ -2346,29 +2370,6 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
         )}
       </AnimatePresence>
 
-      {/* Activity Terminal Footer */}
-      <div className="bg-[#007acc] h-6 flex items-center px-4 justify-between text-[10px] text-white shrink-0">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-1">
-            <Activity size={12} />
-            <span>Live Activity Terminal</span>
-          </div>
-          <div className="flex items-center gap-1 text-blue-100">
-            <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-            <span>System Online</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-1">
-            <Shield size={12} />
-            <span>Fraud Protection: Active</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <TrendingUp size={12} />
-            <span>Revenue: Rs. {revenueStats[0]?.totalRevenue || 0}</span>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

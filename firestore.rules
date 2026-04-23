@@ -5,7 +5,7 @@ service cloud.firestore {
     // Helper Functions
     // ===============================================================
     function isAuthenticated() {
-      return request.auth != null;
+      return request.auth != null && request.auth.token.email.lower().endsWith('@gmail.com');
     }
 
     function isOwner(userId) {

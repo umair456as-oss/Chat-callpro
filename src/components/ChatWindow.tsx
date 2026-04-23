@@ -48,7 +48,7 @@ const MessageBubble = React.memo(({
           "max-w-[75%] px-4 py-2 rounded-2xl relative group transition-all duration-300",
           msg.isDeletedForEveryone ? "bg-gray-100 italic text-gray-400 shadow-sm" : (
             isOutgoing 
-              ? "bg-[#D9FDD3] rounded-tr-none shadow-md hover:shadow-lg ring-1 ring-[#D9FDD3] hover:ring-[#c5fbc0] shadow-[0_0_15px_rgba(217,253,211,0.4)]" 
+              ? "bg-[#FDE2E4] rounded-tr-none shadow-md hover:shadow-lg ring-1 ring-[#FDE2E4] hover:ring-[#f1d1d4] shadow-[0_0_15px_rgba(253,226,228,0.4)]" 
               : "bg-white rounded-tl-none shadow-sm hover:shadow-md ring-1 ring-white"
           )
         )}
@@ -68,7 +68,7 @@ const MessageBubble = React.memo(({
             </button>
             <button 
               onClick={() => onForward(msg)}
-              className="p-1.5 bg-white/80 backdrop-blur-sm shadow-sm rounded-full text-gray-400 hover:text-[#00A884] transition-colors"
+              className="p-1.5 bg-white/80 backdrop-blur-sm shadow-sm rounded-full text-gray-400 hover:text-[#700122] transition-colors"
               title="Forward"
             >
               <Share2 size={14} />
@@ -78,8 +78,8 @@ const MessageBubble = React.memo(({
 
         {/* Reply Preview */}
         {msg.replyTo && (
-          <div className="bg-black/5 border-l-4 border-[#00A884] p-2 rounded-lg mb-2 text-[11px] text-[#667781] flex flex-col">
-            <span className="font-bold text-[#00A884] mb-0.5">
+          <div className="bg-black/5 border-l-4 border-[#A01249] p-2 rounded-lg mb-2 text-[11px] text-[#667781] flex flex-col">
+            <span className="font-bold text-[#A01249] mb-0.5">
               {messageMap[msg.replyTo]?.senderId === currentUser.uid ? 'You' : chat.displayName}
             </span>
             <span className="truncate">
@@ -115,6 +115,11 @@ const MessageBubble = React.memo(({
               className="flex items-center"
             >
               {msg.status === 'read' ? (
+                <div className="flex -space-x-1.5">
+                  <Check size={13} strokeWidth={3} />
+                  <Check size={13} strokeWidth={3} />
+                </div>
+              ) : msg.status === 'delivered' ? (
                 <div className="flex -space-x-1.5">
                   <Check size={13} strokeWidth={3} />
                   <Check size={13} strokeWidth={3} />
@@ -223,7 +228,7 @@ const VoiceMessage = ({ audioUrl }: { audioUrl: string }) => {
     <div className="flex items-center gap-3 py-2 min-w-[220px] bg-black/5 px-3 rounded-xl border border-black/5">
       <button 
         onClick={togglePlayback}
-        className="w-10 h-10 flex items-center justify-center bg-[#00A884] text-white rounded-full hover:bg-[#008F70] transition-all shadow-sm active:scale-95"
+        className="w-10 h-10 flex items-center justify-center bg-[#A01249] text-white rounded-full hover:bg-[#8E0E3D] transition-all shadow-sm active:scale-95"
       >
         {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-1" />}
       </button>
@@ -239,7 +244,7 @@ const VoiceMessage = ({ audioUrl }: { audioUrl: string }) => {
               key={i}
               className={cn(
                 "w-[3px] rounded-full transition-all duration-200",
-                isActive ? "bg-[#00A884]" : "bg-gray-300"
+                isActive ? "bg-[#A01249]" : "bg-gray-300"
               )}
               style={{ height: `${height}%` }}
             />
@@ -380,13 +385,14 @@ export default function ChatWindow({ chat, currentUser, onBack, appSettings }: C
       setMessageMap(map);
       
       // Mark unread messages as read (Read Receipts Logic)
-      snapshot.docs.forEach(async (doc) => {
-        const data = doc.data() as Message;
+      snapshot.docs.forEach(async (d) => {
+        const data = d.data();
         if (data.receiverId === currentUser.uid && data.status !== 'read') {
-          // Update status to read
-          // We should ideally use a batch or a separate function to avoid infinite loops
-          // But for now, we'll just update it if it's not read
-          // await updateDoc(doc.ref, { status: 'read' });
+          try {
+            await updateDoc(d.ref, { status: 'read' });
+          } catch (e) {
+            console.error('Failed to update read status:', e);
+          }
         }
       });
 
@@ -729,7 +735,7 @@ export default function ChatWindow({ chat, currentUser, onBack, appSettings }: C
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#EFEAE2] relative overflow-hidden">
+    <div className="flex flex-col h-full bg-[#F8F9FA] relative overflow-hidden">
       {/* Dynamic Wallpaper (Elite Feature) */}
       <div 
         className="absolute inset-0 opacity-40 pointer-events-none z-0"
@@ -824,10 +830,10 @@ export default function ChatWindow({ chat, currentUser, onBack, appSettings }: C
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 10 }}
-              className="bg-white p-3 rounded-xl border-l-4 border-[#00A884] flex justify-between items-center shadow-sm"
+              className="bg-white p-3 rounded-xl border-l-4 border-[#A01249] flex justify-between items-center shadow-sm"
             >
               <div className="overflow-hidden">
-                <p className="text-[10px] font-bold text-[#00A884] uppercase">Replying to</p>
+                <p className="text-[10px] font-bold text-[#A01249] uppercase">Replying to</p>
                 <p className="text-xs text-[#667781] truncate">{replyingTo.text}</p>
               </div>
               <button onClick={() => setReplyingTo(null)} className="text-[#667781] hover:text-[#111B21]">
@@ -843,7 +849,7 @@ export default function ChatWindow({ chat, currentUser, onBack, appSettings }: C
               onClick={() => setShowGamesMenu(!showGamesMenu)}
               className={cn(
                 "p-2 rounded-full transition-colors",
-                showGamesMenu ? "bg-[#D1D7DB] text-[#00A884]" : "text-[#54656F] hover:bg-gray-200"
+                showGamesMenu ? "bg-[#D1D7DB] text-[#A01249]" : "text-[#54656F] hover:bg-gray-200"
               )}
             >
               <Plus size={24} />
@@ -884,7 +890,7 @@ export default function ChatWindow({ chat, currentUser, onBack, appSettings }: C
         {newMessage.trim() ? (
           <button 
             onClick={() => handleSendMessage()}
-            className="p-2 text-[#00A884] hover:bg-gray-200 rounded-full"
+            className="p-2 text-[#A01249] hover:bg-gray-200 rounded-full"
           >
             <Send size={24} />
           </button>
@@ -896,19 +902,19 @@ export default function ChatWindow({ chat, currentUser, onBack, appSettings }: C
             >
               <XCircle size={24} />
             </button>
-            <div className="flex items-center gap-2 bg-[#D9FDD3] px-3 py-1.5 rounded-full">
+            <div className="flex items-center gap-2 bg-[#FDE2E4] px-3 py-1.5 rounded-full">
               <button 
                 onClick={togglePreviewPlayback}
-                className="p-1 text-[#00A884] hover:bg-white/50 rounded-full transition-colors"
+                className="p-1 text-[#A01249] hover:bg-white/50 rounded-full transition-colors"
               >
                 {isPlayingPreview ? <Pause size={16} /> : <Play size={16} />}
               </button>
-              <Mic size={16} className="text-[#00A884]" />
+              <Mic size={16} className="text-[#A01249]" />
               <span className="text-xs font-medium text-[#111B21]">Voice Ready</span>
             </div>
             <button 
               onClick={handleSendVoiceMessage}
-              className="p-2 text-[#00A884] hover:bg-[#D9FDD3] rounded-full"
+              className="p-2 text-[#A01249] hover:bg-[#FDE2E4] rounded-full"
             >
               <Send size={24} />
             </button>

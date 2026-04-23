@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot, getDocs, or, orderBy } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, getDocs, or, orderBy, updateDoc } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { handleFirestoreError, OperationType } from '../firebaseError';
 import { UserProfile } from '../types';
@@ -52,10 +52,19 @@ export default function ChatList({ onSelectChat, selectedChat, searchQuery = '' 
     const unsubscribe = onSnapshot(q, async (snapshot) => {
       setIsLoading(true);
       const activeUserIds = new Set<string>();
-      snapshot.docs.forEach(doc => {
-        const data = doc.data();
+      snapshot.docs.forEach(async (d) => {
+        const data = d.data();
         if (data.senderId !== auth.currentUser?.uid) activeUserIds.add(data.senderId);
         if (data.receiverId !== auth.currentUser?.uid) activeUserIds.add(data.receiverId);
+
+        // Mark messages as delivered (Read Receipts Logic)
+        if (data.receiverId === auth.currentUser?.uid && data.status === 'sent') {
+          try {
+            await updateDoc(d.ref, { status: 'delivered' });
+          } catch (e) {
+            console.error('Failed to update delivery status:', e);
+          }
+        }
       });
 
       if (activeUserIds.size === 0) {
@@ -132,18 +141,18 @@ export default function ChatList({ onSelectChat, selectedChat, searchQuery = '' 
           <input
             type="text"
             placeholder="Search or start new chat..."
-            className="w-full bg-[#F0F2F5] py-2.5 pl-12 pr-12 rounded-2xl text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#00A884] transition-all border border-transparent shadow-inner"
+            className="w-full bg-[#F0F2F5] py-2.5 pl-12 pr-12 rounded-2xl text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#A01249] transition-all border border-transparent shadow-inner"
             value={searchTerm}
             onChange={(e) => {
               setSearchTerm(e.target.value);
               if (!e.target.value) setSearchResults([]);
             }}
           />
-          <Search className="absolute left-4 top-3 text-[#54656F] group-focus-within:text-[#00A884] transition-colors" size={18} />
+          <Search className="absolute left-4 top-3 text-[#54656F] group-focus-within:text-[#A01249] transition-colors" size={18} />
           {searchTerm && (
             <button 
               type="submit"
-              className="absolute right-2 top-1.5 px-3 py-1 bg-[#00A884] text-white text-[10px] font-black uppercase rounded-lg hover:bg-[#008F6F] transition-colors shadow-sm"
+              className="absolute right-2 top-1.5 px-3 py-1 bg-[#A01249] text-white text-[10px] font-black uppercase rounded-lg hover:bg-[#8E0E3D] transition-colors shadow-sm"
             >
               Find
             </button>
@@ -158,7 +167,7 @@ export default function ChatList({ onSelectChat, selectedChat, searchQuery = '' 
           ) : (
             <div key="chat-list-content">
               {searchTerm && searchResults.length > 0 && (
-                <div className="px-6 py-2 text-[10px] font-black text-[#00A884] uppercase tracking-[0.2em] bg-[#F0F2F5]/50">
+                <div className="px-6 py-2 text-[10px] font-black text-[#A01249] uppercase tracking-[0.2em] bg-[#F0F2F5]/50">
                   Global Search
                 </div>
               )}
@@ -204,14 +213,14 @@ export default function ChatList({ onSelectChat, selectedChat, searchQuery = '' 
                     {selectedChat?.uid === user.uid && (
                       <motion.div 
                         layoutId="active-indicator"
-                        className="absolute left-0 w-1.5 h-10 bg-[#00A884] rounded-r-full z-10" 
+                        className="absolute left-0 w-1.5 h-10 bg-[#A01249] rounded-r-full z-10" 
                       />
                     )}
                     
                     <div className="relative flex-shrink-0">
                       <div className={cn(
                         "p-[2.5px] rounded-full transition-all duration-500",
-                        user.isOnline ? "bg-gradient-to-tr from-[#25D366] to-[#00A884] shadow-md" : "bg-gray-200"
+                        user.isOnline ? "bg-gradient-to-tr from-[#C41E3A] to-[#A01249] shadow-md" : "bg-gray-200"
                       )}>
                         <img
                           src={user.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}`}
@@ -221,31 +230,31 @@ export default function ChatList({ onSelectChat, selectedChat, searchQuery = '' 
                         />
                       </div>
                       {user.isOnline && (
-                        <div className="absolute bottom-0.5 right-0.5 w-4 h-4 bg-[#25D366] rounded-full border-2 border-white shadow-lg"></div>
+                        <div className="absolute bottom-0.5 right-0.5 w-4 h-4 bg-[#C41E3A] rounded-full border-2 border-white shadow-lg"></div>
                       )}
                     </div>
                     <div className="flex-1 min-w-0 ml-4">
                       <div className="flex justify-between items-baseline mb-1">
-                        <h3 className="font-bold text-[#111B21] truncate group-hover:text-[#00A884] transition-colors text-base">
+                        <h3 className="font-bold text-[#111B21] truncate group-hover:text-[#A01249] transition-colors text-base">
                           {user.displayName}
                         </h3>
                         <span className={cn(
                           "text-[10px] font-black transition-colors uppercase tracking-widest",
-                          user.isOnline ? "text-[#00A884]" : "text-[#8696A0]"
+                          user.isOnline ? "text-[#A01249]" : "text-[#8696A0]"
                         )}>
                           {user.isOnline ? 'Online' : 'Offline'}
                         </span>
                       </div>
                       <div className="flex items-center justify-between">
                         <p className="text-sm text-[#667781] truncate flex-1 font-medium">
-                          {user.isVerified && <span className="text-[#00A884] mr-1">✓</span>}
+                          {user.isVerified && <span className="text-[#A01249] mr-1">✓</span>}
                           {user.bio || user.email}
                         </p>
                         {user.isOnline && (
                           <motion.div 
                             animate={{ scale: [1, 1.4, 1], opacity: [0.4, 1, 0.4] }}
                             transition={{ repeat: Infinity, duration: 2.5 }}
-                            className="w-2.5 h-2.5 bg-[#00A884] rounded-full ml-2 shadow-[0_0_10px_rgba(0,168,132,0.5)]"
+                            className="w-2.5 h-2.5 bg-[#A01249] rounded-full ml-2 shadow-[0_0_10px_rgba(160,18,73,0.5)]"
                           />
                         )}
                       </div>

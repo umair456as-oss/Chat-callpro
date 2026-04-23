@@ -1,19 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { Search, MoreVertical, User, Wallet, Shield, Settings, LogOut, X, Camera, Check, Edit2, Key, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebase';
 import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { updatePassword, deleteUser, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
+import { updatePassword, deleteUser } from 'firebase/auth';
 import { UserProfile } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../utils';
 
 interface HeaderProps {
   profile: UserProfile;
-  onTabChange: (tab: 'chats' | 'status' | 'wallet' | 'games' | 'admin') => void;
   onSearch: (query: string) => void;
 }
 
-export default function Header({ profile, onTabChange, onSearch }: HeaderProps) {
+export default function Header({ profile, onSearch }: HeaderProps) {
+  const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -126,7 +127,7 @@ export default function Header({ profile, onTabChange, onSearch }: HeaderProps) 
         initial={{ y: -100 }}
         animate={{ y: 0 }}
         transition={{ type: 'spring', damping: 20, stiffness: 100 }}
-        className="fixed-header bg-[#075E54]/85 backdrop-blur-[10px] text-white px-4 py-3 flex items-center justify-between shadow-lg z-[100] border-b border-white/10"
+        className="fixed-header bg-[#700122]/85 backdrop-blur-[10px] text-white px-4 py-3 flex items-center justify-between shadow-lg z-[100] border-b border-white/10"
       >
         <div className="flex items-center gap-3">
           <AnimatePresence mode="wait">
@@ -199,36 +200,36 @@ export default function Header({ profile, onTabChange, onSearch }: HeaderProps) 
                   >
                     <button 
                       onClick={() => { setIsProfileModalOpen(true); setIsMenuOpen(false); }}
-                      className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-teal-50 transition-colors group"
+                      className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-maroon-50 transition-colors group"
                     >
-                      <div className="p-1.5 bg-teal-50 text-teal-600 rounded-lg group-hover:bg-teal-100 transition-colors">
+                      <div className="p-1.5 bg-maroon-50 text-[#700122] rounded-lg group-hover:bg-maroon-100 transition-colors">
                         <User size={18} />
                       </div>
                       <span className="font-medium">Profile</span>
                     </button>
                     <button 
-                      onClick={() => { onTabChange('wallet'); setIsMenuOpen(false); }}
-                      className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-teal-50 transition-colors group"
+                      onClick={() => { navigate('/wallet'); setIsMenuOpen(false); }}
+                      className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-maroon-50 transition-colors group"
                     >
-                      <div className="p-1.5 bg-teal-50 text-teal-600 rounded-lg group-hover:bg-teal-100 transition-colors">
+                      <div className="p-1.5 bg-maroon-50 text-[#700122] rounded-lg group-hover:bg-maroon-100 transition-colors">
                         <Wallet size={18} />
                       </div>
                       <span className="font-medium">Wallet</span>
                     </button>
                     <button 
                       onClick={() => { setIsSecurityModalOpen(true); setIsMenuOpen(false); }}
-                      className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-teal-50 transition-colors group"
+                      className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-maroon-50 transition-colors group"
                     >
-                      <div className="p-1.5 bg-teal-50 text-teal-600 rounded-lg group-hover:bg-teal-100 transition-colors">
+                      <div className="p-1.5 bg-maroon-50 text-[#700122] rounded-lg group-hover:bg-maroon-100 transition-colors">
                         <Shield size={18} />
                       </div>
                       <span className="font-medium">Security</span>
                     </button>
                     <button 
                       onClick={() => { setIsSettingsModalOpen(true); setIsMenuOpen(false); }}
-                      className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-teal-50 transition-colors group"
+                      className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-maroon-50 transition-colors group"
                     >
-                      <div className="p-1.5 bg-teal-50 text-teal-600 rounded-lg group-hover:bg-teal-100 transition-colors">
+                      <div className="p-1.5 bg-maroon-50 text-[#700122] rounded-lg group-hover:bg-maroon-100 transition-colors">
                         <Settings size={18} />
                       </div>
                       <span className="font-medium">Settings</span>
@@ -266,7 +267,7 @@ export default function Header({ profile, onTabChange, onSearch }: HeaderProps) 
               exit={{ scale: 0.9, opacity: 0 }}
               className="bg-white w-full max-w-md rounded-2xl overflow-hidden shadow-2xl"
             >
-              <div className="bg-[#075E54] p-6 text-white flex items-center justify-between">
+              <div className="bg-[#700122] p-6 text-white flex items-center justify-between">
                 <h3 className="text-xl font-bold">Profile</h3>
                 <button onClick={() => setIsProfileModalOpen(false)} className="p-1 hover:bg-white/10 rounded-full">
                   <X size={24} />
@@ -278,10 +279,10 @@ export default function Header({ profile, onTabChange, onSearch }: HeaderProps) 
                   <div className="relative group">
                     <img 
                       src={profile.photoURL || `https://ui-avatars.com/api/?name=${profile.displayName}`}
-                      className="w-32 h-32 rounded-full border-4 border-[#00A884] shadow-lg object-cover"
+                      className="w-32 h-32 rounded-full border-4 border-[#A01249] shadow-lg object-cover"
                       alt={profile.displayName || ''}
                     />
-                    <button className="absolute bottom-0 right-0 p-2 bg-[#00A884] text-white rounded-full shadow-lg hover:bg-[#008F6F] transition-colors">
+                    <button className="absolute bottom-0 right-0 p-2 bg-[#A01249] text-white rounded-full shadow-lg hover:bg-[#8E0E3D] transition-colors">
                       <Camera size={20} />
                     </button>
                   </div>
@@ -293,10 +294,10 @@ export default function Header({ profile, onTabChange, onSearch }: HeaderProps) 
                             type="text"
                             value={newName}
                             onChange={(e) => setNewName(e.target.value)}
-                            className="text-2xl font-bold text-gray-800 border-b-2 border-[#00A884] outline-none bg-transparent text-center"
+                            className="text-2xl font-bold text-gray-800 border-b-2 border-[#A01249] outline-none bg-transparent text-center"
                             autoFocus
                           />
-                          <button onClick={updateName} className="text-emerald-500">
+                          <button onClick={updateName} className="text-[#A01249]">
                             <Check size={20} />
                           </button>
                           <button onClick={() => setIsEditingName(false)} className="text-red-400">
@@ -306,7 +307,7 @@ export default function Header({ profile, onTabChange, onSearch }: HeaderProps) 
                       ) : (
                         <>
                           <h4 className="text-2xl font-bold text-gray-800">{profile.displayName}</h4>
-                          <button onClick={() => setIsEditingName(true)} className="text-gray-400 hover:text-[#00A884]">
+                          <button onClick={() => setIsEditingName(true)} className="text-gray-400 hover:text-[#A01249]">
                             <Edit2 size={16} />
                           </button>
                         </>
@@ -316,19 +317,19 @@ export default function Header({ profile, onTabChange, onSearch }: HeaderProps) 
                   </div>
                 </div>
 
-                <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100 mb-6 flex items-center justify-between">
+                <div className="bg-red-50 p-4 rounded-xl border border-red-100 mb-6 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-emerald-500 text-white rounded-lg">
+                    <div className="p-2 bg-[#A01249] text-white rounded-lg">
                       <Wallet size={20} />
                     </div>
                     <div>
-                      <p className="text-xs text-emerald-700 font-bold uppercase tracking-wider">Earning Balance</p>
-                      <p className="text-xl font-black text-emerald-900">PKR {profile.balance?.toLocaleString() || '0'}</p>
+                      <p className="text-xs text-red-700 font-bold uppercase tracking-wider">Earning Balance</p>
+                      <p className="text-xl font-black text-red-900">PKR {profile.balance?.toLocaleString() || '0'}</p>
                     </div>
                   </div>
                   <button 
-                    onClick={() => { setIsProfileModalOpen(false); onTabChange('wallet'); }}
-                    className="text-emerald-600 font-bold text-sm hover:underline"
+                    onClick={() => { setIsProfileModalOpen(false); navigate('/wallet'); }}
+                    className="text-red-600 font-bold text-sm hover:underline"
                   >
                     View Wallet
                   </button>
@@ -337,9 +338,9 @@ export default function Header({ profile, onTabChange, onSearch }: HeaderProps) 
                 <div className="space-y-6">
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <label className="text-xs font-bold text-[#00A884] uppercase tracking-widest">About / Bio</label>
+                      <label className="text-xs font-bold text-[#A01249] uppercase tracking-widest">About / Bio</label>
                       {!isEditingBio ? (
-                        <button onClick={() => setIsEditingBio(true)} className="text-gray-400 hover:text-[#00A884]">
+                        <button onClick={() => setIsEditingBio(true)} className="text-gray-400 hover:text-[#A01249]">
                           <Edit2 size={16} />
                         </button>
                       ) : (
@@ -347,7 +348,7 @@ export default function Header({ profile, onTabChange, onSearch }: HeaderProps) 
                           <button onClick={() => setIsEditingBio(false)} className="text-red-400">
                             <X size={16} />
                           </button>
-                          <button onClick={updateBio} className="text-emerald-500">
+                          <button onClick={updateBio} className="text-[#A01249]">
                             <Check size={16} />
                           </button>
                         </div>
@@ -357,7 +358,7 @@ export default function Header({ profile, onTabChange, onSearch }: HeaderProps) 
                       <textarea
                         value={newBio}
                         onChange={(e) => setNewBio(e.target.value)}
-                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#00A884] focus:border-transparent outline-none transition-all resize-none"
+                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#A01249] focus:border-transparent outline-none transition-all resize-none"
                         rows={3}
                         placeholder="Tell us about yourself..."
                       />
@@ -384,7 +385,7 @@ export default function Header({ profile, onTabChange, onSearch }: HeaderProps) 
               exit={{ scale: 0.9, opacity: 0 }}
               className="bg-white w-full max-w-md rounded-2xl overflow-hidden shadow-2xl"
             >
-              <div className="bg-[#075E54] p-6 text-white flex items-center justify-between">
+              <div className="bg-[#700122] p-6 text-white flex items-center justify-between">
                 <h3 className="text-xl font-bold">Settings</h3>
                 <button onClick={() => setIsSettingsModalOpen(false)} className="p-1 hover:bg-white/10 rounded-full">
                   <X size={24} />
@@ -405,7 +406,7 @@ export default function Header({ profile, onTabChange, onSearch }: HeaderProps) 
                     onClick={() => setIsDarkMode(!isDarkMode)}
                     className={cn(
                       "w-12 h-6 rounded-full transition-colors relative",
-                      isDarkMode ? "bg-[#00A884]" : "bg-gray-300"
+                      isDarkMode ? "bg-[#A01249]" : "bg-gray-300"
                     )}
                   >
                     <div className={cn(
@@ -428,7 +429,7 @@ export default function Header({ profile, onTabChange, onSearch }: HeaderProps) 
                     onClick={() => setIsSoundEnabled(!isSoundEnabled)}
                     className={cn(
                       "w-12 h-6 rounded-full transition-colors relative",
-                      isSoundEnabled ? "bg-[#00A884]" : "bg-gray-300"
+                      isSoundEnabled ? "bg-[#A01249]" : "bg-gray-300"
                     )}
                   >
                     <div className={cn(
@@ -453,14 +454,14 @@ export default function Header({ profile, onTabChange, onSearch }: HeaderProps) 
               exit={{ scale: 0.9, opacity: 0 }}
               className="bg-white w-full max-w-md rounded-2xl overflow-hidden shadow-2xl"
             >
-              <div className="bg-[#075E54] p-6 text-white flex items-center justify-between">
+              <div className="bg-[#700122] p-6 text-white flex items-center justify-between">
                 <h3 className="text-xl font-bold">Security</h3>
                 <button onClick={() => setIsSecurityModalOpen(false)} className="p-1 hover:bg-white/10 rounded-full">
                   <X size={24} />
                 </button>
               </div>
               <div className="p-8 text-center">
-                <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <div className="w-20 h-20 bg-red-100 text-[#700122] rounded-full flex items-center justify-center mx-auto mb-4">
                   <Shield size={40} />
                 </div>
                 <h4 className="text-xl font-bold text-gray-800 mb-2">Account Verified</h4>
@@ -470,15 +471,15 @@ export default function Header({ profile, onTabChange, onSearch }: HeaderProps) 
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-700">Last Seen</span>
-                      <span className="text-sm font-bold text-[#00A884]">Everyone</span>
+                      <span className="text-sm font-bold text-[#A01249]">Everyone</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-700">Profile Photo</span>
-                      <span className="text-sm font-bold text-[#00A884]">My Contacts</span>
+                      <span className="text-sm font-bold text-[#A01249]">My Contacts</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-700">Read Receipts</span>
-                      <span className="text-sm font-bold text-[#00A884]">Enabled</span>
+                      <span className="text-sm font-bold text-[#A01249]">Enabled</span>
                     </div>
                   </div>
                 </div>
@@ -492,12 +493,12 @@ export default function Header({ profile, onTabChange, onSearch }: HeaderProps) 
                         placeholder="New Password"
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
-                        className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#00A884]"
+                        className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#A01249]"
                       />
                       <button
                         onClick={handleChangePassword}
                         disabled={isChangingPassword || !newPassword}
-                        className="bg-[#00A884] text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-[#008F6F] disabled:opacity-50"
+                        className="bg-[#A01249] text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-[#8E0E3D] disabled:opacity-50"
                       >
                         {isChangingPassword ? 'Updating...' : 'Update'}
                       </button>

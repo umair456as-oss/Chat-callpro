@@ -106,13 +106,13 @@ export default function Wallet({ profile }: WalletProps) {
     <div className="scrollable-content bg-[#F0F2F5] p-4 md:p-8 custom-scrollbar">
       <div className="max-w-4xl mx-auto space-y-6 md:space-y-8">
         <h1 className="text-2xl font-bold text-[#111B21] flex items-center gap-3">
-          <WalletIcon className="text-[#00A884]" size={32} />
+          <WalletIcon className="text-[#8E0E3D]" size={32} />
           My Wallet
         </h1>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* Balance Card */}
-          <div className="bg-[#00A884] text-white p-8 rounded-3xl shadow-xl relative overflow-hidden">
+          <div className="bg-[#700122] text-white p-8 rounded-3xl shadow-xl relative overflow-hidden">
             <div className="relative z-10">
               <p className="text-white/80 text-sm font-medium mb-2 uppercase tracking-wider">Total Balance</p>
               <h2 className="text-5xl font-bold mb-6">Rs. {profile.balance.toFixed(2)}</h2>
@@ -134,7 +134,7 @@ export default function Wallet({ profile }: WalletProps) {
           {/* Withdrawal Form */}
           <div className="bg-white p-8 rounded-3xl shadow-md">
             <h3 className="text-lg font-bold text-[#111B21] mb-6 flex items-center gap-2">
-              <ArrowUpRight className="text-[#00A884]" size={20} />
+              <ArrowUpRight className="text-[#8E0E3D]" size={20} />
               Withdraw Funds
             </h3>
             
@@ -144,7 +144,7 @@ export default function Wallet({ profile }: WalletProps) {
                 <input
                   type="number"
                   placeholder="Min. 500"
-                  className="w-full border border-[#D1D7DB] p-3 rounded-xl focus:outline-none focus:border-[#00A884]"
+                  className="w-full border border-[#D1D7DB] p-3 rounded-xl focus:outline-none focus:border-[#700122]"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                 />
@@ -157,7 +157,7 @@ export default function Wallet({ profile }: WalletProps) {
                 {amount && !isNaN(parseFloat(amount)) && (
                   <div className="mt-1 flex justify-between text-xs font-bold">
                     <span className="text-[#111B21]">You will receive:</span>
-                    <span className="text-[#00A884]">Rs. {(parseFloat(amount) - (parseFloat(amount) * (appSettings?.withdrawalTax || 0) / 100)).toFixed(2)}</span>
+                    <span className="text-[#8E0E3D]">Rs. {(parseFloat(amount) - (parseFloat(amount) * (appSettings?.withdrawalTax || 0) / 100)).toFixed(2)}</span>
                   </div>
                 )}
               </div>
@@ -170,7 +170,7 @@ export default function Wallet({ profile }: WalletProps) {
                     onClick={() => setPaymentMethod('EasyPaisa')}
                     className={cn(
                       "flex items-center justify-center gap-2 p-3 rounded-xl border transition-all",
-                      paymentMethod === 'EasyPaisa' ? "bg-[#D9FDD3] border-[#00A884] text-[#00A884]" : "border-[#D1D7DB] text-[#54656F]"
+                      paymentMethod === 'EasyPaisa' ? "bg-red-50 border-[#700122] text-[#700122]" : "border-[#D1D7DB] text-[#54656F]"
                     )}
                   >
                     <Smartphone size={18} />
@@ -181,7 +181,7 @@ export default function Wallet({ profile }: WalletProps) {
                     onClick={() => setPaymentMethod('JazzCash')}
                     className={cn(
                       "flex items-center justify-center gap-2 p-3 rounded-xl border transition-all",
-                      paymentMethod === 'JazzCash' ? "bg-[#D9FDD3] border-[#00A884] text-[#00A884]" : "border-[#D1D7DB] text-[#54656F]"
+                      paymentMethod === 'JazzCash' ? "bg-red-50 border-[#700122] text-[#700122]" : "border-[#D1D7DB] text-[#54656F]"
                     )}
                   >
                     <Smartphone size={18} />
@@ -195,14 +195,14 @@ export default function Wallet({ profile }: WalletProps) {
                 <input
                   type="text"
                   placeholder="03xx xxxxxxx"
-                  className="w-full border border-[#D1D7DB] p-3 rounded-xl focus:outline-none focus:border-[#00A884]"
+                  className="w-full border border-[#D1D7DB] p-3 rounded-xl focus:outline-none focus:border-[#700122]"
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
                 />
               </div>
 
               {message.text && (
-                <p className={cn("text-sm text-center", message.type === 'error' ? "text-red-500" : "text-[#00A884]")}>
+                <p className={cn("text-sm text-center", message.type === 'error' ? "text-red-500" : "text-[#700122]")}>
                   {message.text}
                 </p>
               )}
@@ -210,7 +210,7 @@ export default function Wallet({ profile }: WalletProps) {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-[#00A884] text-white font-bold py-4 rounded-xl shadow-lg hover:bg-[#008F6F] transition-all active:scale-95 disabled:opacity-50"
+                className="w-full bg-[#700122] text-white font-bold py-4 rounded-xl shadow-lg hover:bg-[#500118] transition-all active:scale-95 disabled:opacity-50"
               >
                 {loading ? 'Processing...' : 'Request Withdrawal'}
               </button>
@@ -222,7 +222,7 @@ export default function Wallet({ profile }: WalletProps) {
         <div className="bg-white rounded-3xl shadow-md overflow-hidden">
           <div className="p-6 border-b border-[#F0F2F5] flex items-center justify-between">
             <h3 className="text-lg font-bold text-[#111B21] flex items-center gap-2">
-              <History className="text-[#00A884]" size={20} />
+              <History className="text-[#8E0E3D]" size={20} />
               Recent Transactions
             </h3>
           </div>
