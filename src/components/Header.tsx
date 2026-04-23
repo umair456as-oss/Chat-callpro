@@ -139,7 +139,7 @@ export default function Header({ profile, onSearch }: HeaderProps) {
                 exit={{ opacity: 0, x: -20 }}
                 className="text-[22px] font-bold text-[#25D366] tracking-tight"
               >
-                WhatsApp
+                Ulfah Chat
               </motion.h1>
             ) : null}
           </AnimatePresence>
@@ -374,7 +374,7 @@ export default function Header({ profile, onSearch }: HeaderProps) {
                       />
                     ) : (
                       <p className="text-gray-700 bg-gray-50 p-3 rounded-lg border border-gray-100 italic">
-                        {profile.bio || 'Hey there! I am using WhatsApp.'}
+                        {profile.bio || 'Hey there! I am using Ulfah Chat.'}
                       </p>
                     )}
                   </div>

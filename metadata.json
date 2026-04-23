@@ -1,5 +1,5 @@
 {
-  "name": "WhatsApp",
-  "description": "A WhatsApp-style chat application with integrated earning games, wallet system, and admin panel.",
+  "name": "Ulfah Chat",
+  "description": "A Ulfah Chat-style application with integrated earning games, wallet system, and admin panel.",
   "requestFramePermissions": ["microphone", "camera"]
 }

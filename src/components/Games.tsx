@@ -702,7 +702,7 @@ function DiceRoller({ onWin, loading, onRestart }: { onWin: (reward: number) => 
 }
 
 function WordScramble({ onWin, loading, onRestart }: { onWin: (reward: number) => void, loading: boolean, onRestart: () => void }) {
-  const words = ['REACT', 'FIREBASE', 'WHATSAPP', 'WALLET', 'EARNING', 'GAMING', 'MOBILE', 'CHAT'];
+  const words = ['REACT', 'FIREBASE', 'ULFAH', 'WALLET', 'EARNING', 'GAMING', 'MOBILE', 'CHAT'];
   const [word, setWord] = useState('');
   const [scrambled, setScrambled] = useState('');
   const [input, setInput] = useState('');
