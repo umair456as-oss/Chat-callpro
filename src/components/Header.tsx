@@ -15,7 +15,7 @@ interface HeaderProps {
 }
 
 export default function Header({ profile, onSearch, logoUrl }: HeaderProps) {
-  const DEFAULT_LOGO = 'https://storage.googleapis.com/test-media-objects/643ljz7fuma5cdqt7xpc5p/75971609428/7f8a7065-27a3-4903-8898-d142b655da03.png';
+  const DEFAULT_LOGO = 'https://avatar.vercel.sh/ulfah-chat?size=128&text=UC&bg=0f4c5c&color=ffd700';
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);

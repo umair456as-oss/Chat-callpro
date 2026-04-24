@@ -20,18 +20,20 @@ import { ShieldAlert, Phone, PhoneOff, Mail, RefreshCw, LogOut } from 'lucide-re
 import { cn } from './utils';
 import VoiceCall from './components/VoiceCall';
 import Header from './components/Header';
+import SplashScreen from './components/SplashScreen';
 import Settings from './components/Settings';
 import SocialAd from './components/SocialAd';
 import GlobalBannerAd from './components/GlobalBannerAd';
 import { motion, AnimatePresence } from 'motion/react';
 
 const DEFAULT_VAPID_KEY = 'BMzgLSxYxgUSrjLkyEYhCqMJflI2nISGKbKU8xBR_vEqbHeNK59_ibPl6mEPpQ5gGve7qQYc7LuZmkz0juS-wRo';
-const DEFAULT_APP_LOGO = 'https://storage.googleapis.com/test-media-objects/643ljz7fuma5cdqt7xpc5p/75971609428/7f8a7065-27a3-4903-8898-d142b655da03.png';
+const DEFAULT_APP_LOGO = 'https://avatar.vercel.sh/ulfah-chat?size=128&text=UC&bg=0f4c5c&color=ffd700';
 
 export default function App() {
   const { user, profile, loading } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const [showSplash, setShowSplash] = useState(true);
   const [selectedChat, setSelectedChat] = useState<UserProfile | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
@@ -57,7 +59,11 @@ export default function App() {
     } else {
       document.documentElement.classList.remove('high-contrast');
     }
-  }, [profile?.userSettings?.theme, profile?.userSettings?.increaseContrast]);
+
+    if (profile.userSettings.fontSize) {
+      document.documentElement.setAttribute('data-font-size', profile.userSettings.fontSize);
+    }
+  }, [profile?.userSettings?.theme, profile?.userSettings?.increaseContrast, profile?.userSettings?.fontSize]);
 
   useEffect(() => {
     if (incomingCall) {
@@ -168,13 +174,29 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
-    if (!user) return;
+    if (appSettings?.appLogoUrl) {
+      let link: HTMLLinkElement | null = document.querySelector("link[rel~='icon']");
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = 'icon';
+        document.getElementsByTagName('head')[0].appendChild(link);
+      }
+      link.href = appSettings.appLogoUrl;
+    }
+  }, [appSettings?.appLogoUrl]);
 
+  useEffect(() => {
     const unsubS = onSnapshot(doc(db, 'settings', 'global'), (doc) => {
       if (doc.exists()) setAppSettings(doc.data() as AppSettings);
     }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'settings/global');
+      console.error("Failed to fetch settings:", error);
     });
+
+    return () => unsubS();
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
 
     const qA = query(collection(db, 'announcements'), orderBy('createdAt', 'desc'));
     const unsubA = onSnapshot(qA, (snapshot) => {
@@ -184,7 +206,6 @@ export default function App() {
     });
 
     return () => {
-      unsubS();
       unsubA();
     };
   }, [user]);
@@ -306,6 +327,10 @@ export default function App() {
       unbanAdmin();
     }
   }, [user?.uid, profile?.isBanned]);
+
+  if (showSplash) {
+    return <SplashScreen onComplete={() => setShowSplash(false)} logoUrl={appSettings?.appLogoUrl} />;
+  }
 
   if (loading) {
     return (

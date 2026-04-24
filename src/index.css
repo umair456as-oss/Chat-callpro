@@ -5,6 +5,29 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
+:root {
+  --transition-speed: 0.3s;
+}
+
+[data-font-size="small"] { font-size: 14px; }
+[data-font-size="medium"] { font-size: 16px; }
+[data-font-size="large"] { font-size: 18px; }
+
+.dark {
+  --tw-bg-opacity: 1;
+  background-color: rgb(17 27 33 / var(--tw-bg-opacity));
+  color: #e9edef;
+}
+
+.dark body {
+  background-color: #111b21 !important;
+}
+
+.high-contrast {
+  --tw-ring-offset-width: 4px;
+  filter: contrast(1.2);
+}
+
 @layer base {
   :root {
     --safe-area-top: env(safe-area-inset-top, 0px);

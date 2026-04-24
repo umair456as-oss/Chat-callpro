@@ -35,6 +35,14 @@ export interface UserProfile {
     increaseContrast: boolean;
     theme: 'light' | 'dark' | 'system';
     fontSize: 'small' | 'medium' | 'large';
+    lastSeenVisibility: 'everyone' | 'myContacts' | 'nobody';
+    profilePhotoVisibility: 'everyone' | 'myContacts' | 'nobody';
+    aboutVisibility: 'everyone' | 'myContacts' | 'nobody';
+    statusVisibility: 'everyone' | 'myContacts' | 'nobody';
+    linksVisibility: 'everyone' | 'myContacts' | 'nobody';
+    disappearingMessagesTimer: 'off' | '24h' | '7d' | '90d';
+    securityNotifications: boolean;
+    customLists?: string[];
   };
 }
 

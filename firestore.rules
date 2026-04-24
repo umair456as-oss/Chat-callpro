@@ -5,7 +5,7 @@ service cloud.firestore {
     // Helper Functions
     // ===============================================================
     function isAuthenticated() {
-      return request.auth != null && request.auth.token.email.lower().endsWith('@gmail.com');
+      return request.auth != null;
     }
 
     function isOwner(userId) {
@@ -14,9 +14,7 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() && 
-        ((request.auth.token.email == "abdulrehmanhabib.com@gmail.com" && request.auth.token.email_verified == true) ||
-         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
+        (request.auth.token.email == "abdulrehmanhabib.com@gmail.com" && request.auth.token.email_verified == true);
     }
 
     function hasOnlyAllowedFields(fields) {
@@ -141,7 +139,7 @@ service cloud.firestore {
     }
 
     match /settings/{settingId} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       allow write: if isAdmin();
     }
 

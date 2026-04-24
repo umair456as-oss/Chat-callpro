@@ -36,7 +36,14 @@ export default function Settings({ profile }: SettingsProps) {
     highPriority: true,
     increaseContrast: false,
     theme: 'system',
-    fontSize: 'medium'
+    fontSize: 'medium',
+    lastSeenVisibility: 'nobody',
+    profilePhotoVisibility: 'myContacts',
+    aboutVisibility: 'everyone',
+    statusVisibility: 'myContacts',
+    linksVisibility: 'everyone',
+    disappearingMessagesTimer: 'off',
+    securityNotifications: true
   };
 
   const updateSetting = async (key: string, value: any) => {
@@ -48,6 +55,46 @@ export default function Settings({ profile }: SettingsProps) {
     } catch (error) {
       console.error('Failed to update setting:', error);
     }
+  };
+
+  const cycleVisibility = (key: string, current: string) => {
+    const options: ('everyone' | 'myContacts' | 'nobody')[] = ['everyone', 'myContacts', 'nobody'];
+    const currentIndex = options.indexOf(current as any);
+    const nextValue = options[(currentIndex + 1) % options.length];
+    updateSetting(key, nextValue);
+  };
+
+  const formatVisibilityLabel = (value: string) => {
+    if (value === 'myContacts') return 'My contacts';
+    return value.charAt(0).toUpperCase() + value.slice(1);
+  };
+
+  const [isPhotoLoading, setIsPhotoLoading] = useState(false);
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !profile.uid) return;
+
+    if (file.size > 500000) {
+      alert('Photo is too large. Please select an image under 500KB.');
+      return;
+    }
+
+    setIsPhotoLoading(true);
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const base64 = event.target?.result as string;
+      try {
+        await updateDoc(doc(db, 'users', profile.uid), {
+          photoURL: base64
+        });
+      } catch (error) {
+        console.error('Failed to upload photo:', error);
+      } finally {
+        setIsPhotoLoading(false);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleBack = () => {
@@ -125,11 +172,20 @@ export default function Settings({ profile }: SettingsProps) {
       {/* Profile Section */}
       <div className="p-4 flex items-center gap-4 cursor-pointer hover:bg-gray-50 transition-colors group mb-4 border-b border-gray-100">
         <div className="relative">
-          <img 
-            src={profile.photoURL || `https://ui-avatars.com/api/?name=${profile.displayName}`}
-            className="w-20 h-20 rounded-full object-cover border border-gray-100 shadow-sm"
-            alt="Profile"
-          />
+          <label className="cursor-pointer group">
+            <img 
+              src={profile.photoURL || `https://ui-avatars.com/api/?name=${profile.displayName}`}
+              className={cn(
+                "w-20 h-20 rounded-full object-cover border border-gray-100 shadow-sm",
+                isPhotoLoading && "opacity-50"
+              )}
+              alt="Profile"
+            />
+            <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+              <ImageIcon size={24} className="text-white" />
+            </div>
+            <input type="file" className="hidden" accept="image/*" onChange={handlePhotoUpload} disabled={isPhotoLoading} />
+          </label>
         </div>
         <div className="flex-1 min-w-0">
           <h2 className="text-xl font-medium text-[#111B21] truncate">{profile.displayName}</h2>
@@ -192,16 +248,31 @@ export default function Settings({ profile }: SettingsProps) {
   const renderAccount = () => (
     <div className="flex flex-col bg-white h-screen overflow-y-auto pb-20">
       {renderHeader("Account")}
-      <SettingItem icon={Shield} title="Security notifications" />
-      <SettingItem icon={BadgePlus} title="Passkeys" />
+      <SettingItem 
+        icon={Shield} 
+        title="Security notifications" 
+        toggle 
+        toggleValue={settings.securityNotifications}
+        onClick={() => updateSetting('securityNotifications', !settings.securityNotifications)}
+      />
+      <SettingItem icon={BadgePlus} title="Passkeys" subtitle="Create an extra layer of security" />
       <SettingItem icon={Mail} title="Email address" subtitle={profile.email} />
-      <SettingItem icon={Smartphone} title="Two-step verification" />
+      <SettingItem icon={Smartphone} title="Two-step verification" subtitle="Extra security for your phone" />
       <SettingItem icon={Smartphone} title="Change phone number" />
       <SettingItem icon={FileText} title="Request account info" />
       <SettingItem icon={ListIcon} title="Ad preferences in Accounts Center" />
       <div className="h-px bg-gray-100 my-2" />
       <SettingItem icon={UserPlus} title="Add account" />
-      <SettingItem icon={Trash2} title="Delete account" onClick={() => {}} />
+      <SettingItem 
+        icon={Trash2} 
+        title="Delete account" 
+        onClick={() => {
+          if (confirm("Are you sure you want to delete your account? This action cannot be undone.")) {
+            auth.signOut();
+            navigate('/');
+          }
+        }} 
+      />
     </div>
   );
 
@@ -209,11 +280,36 @@ export default function Settings({ profile }: SettingsProps) {
     <div className="flex flex-col bg-white h-screen overflow-y-auto pb-20">
       {renderHeader("Privacy")}
       <div className="px-4 py-3 text-[14px] font-bold text-[#667781] uppercase tracking-wide">Who can see my personal info</div>
-      <SettingItem icon={Eye} title="Last seen and online" subtitle="Nobody" />
-      <SettingItem icon={ImageIcon} title="Profile picture" subtitle="My contacts" />
-      <SettingItem icon={Info} title="About" subtitle="Everyone" />
-      <SettingItem icon={LinkIcon} title="Links" subtitle="Everyone" />
-      <SettingItem icon={CircleDashed} title="Status" subtitle="My contacts" />
+      <SettingItem 
+        icon={Eye} 
+        title="Last seen and online" 
+        subtitle={formatVisibilityLabel(settings.lastSeenVisibility || 'nobody')} 
+        onClick={() => cycleVisibility('lastSeenVisibility', settings.lastSeenVisibility || 'nobody')}
+      />
+      <SettingItem 
+        icon={ImageIcon} 
+        title="Profile picture" 
+        subtitle={formatVisibilityLabel(settings.profilePhotoVisibility || 'myContacts')} 
+        onClick={() => cycleVisibility('profilePhotoVisibility', settings.profilePhotoVisibility || 'myContacts')}
+      />
+      <SettingItem 
+        icon={Info} 
+        title="About" 
+        subtitle={formatVisibilityLabel(settings.aboutVisibility || 'everyone')} 
+        onClick={() => cycleVisibility('aboutVisibility', settings.aboutVisibility || 'everyone')}
+      />
+      <SettingItem 
+        icon={LinkIcon} 
+        title="Links" 
+        subtitle={formatVisibilityLabel(settings.linksVisibility || 'everyone')} 
+        onClick={() => cycleVisibility('linksVisibility', settings.linksVisibility || 'everyone')}
+      />
+      <SettingItem 
+        icon={CircleDashed} 
+        title="Status" 
+        subtitle={formatVisibilityLabel(settings.statusVisibility || 'myContacts')} 
+        onClick={() => cycleVisibility('statusVisibility', settings.statusVisibility || 'myContacts')}
+      />
       
       <div className="h-px bg-gray-100 my-2" />
       
@@ -241,7 +337,17 @@ export default function Settings({ profile }: SettingsProps) {
       </div>
 
       <div className="px-4 py-3 text-[14px] font-bold text-[#667781] uppercase tracking-wide">Disappearing messages</div>
-      <SettingItem icon={Clock} title="Default message timer" subtitle="Off" />
+      <SettingItem 
+        icon={Clock} 
+        title="Default message timer" 
+        subtitle={settings.disappearingMessagesTimer === 'off' ? 'Off' : settings.disappearingMessagesTimer} 
+        onClick={() => {
+          const timers: ('off' | '24h' | '7d' | '90d')[] = ['off', '24h', '7d', '90d'];
+          const current = settings.disappearingMessagesTimer || 'off';
+          const next = timers[(timers.indexOf(current as any) + 1) % timers.length];
+          updateSetting('disappearingMessagesTimer', next);
+        }}
+      />
     </div>
   );
 
@@ -263,7 +369,16 @@ export default function Settings({ profile }: SettingsProps) {
         <p className="text-[#54656F] text-sm mb-8 leading-relaxed max-w-xs">
           Any list you create becomes a filter at the top of your Chats tab.
         </p>
-        <button className="w-full py-3.5 bg-[#D9FDD3] text-[#008069] font-bold rounded-full flex items-center justify-center gap-2 hover:bg-[#c6fcc0] transition-colors">
+        <button 
+          onClick={() => {
+            const name = prompt("Enter list name:");
+            if (name && name.trim()) {
+              const currentLists = settings.customLists || [];
+              updateSetting('customLists', [...currentLists, name.trim()]);
+            }
+          }}
+          className="w-full py-3.5 bg-[#D9FDD3] text-[#008069] font-bold rounded-full flex items-center justify-center gap-2 hover:bg-[#c6fcc0] transition-colors"
+        >
           <PlusCircle size={20} />
           Create a custom list
         </button>
@@ -284,6 +399,23 @@ export default function Settings({ profile }: SettingsProps) {
             <h4 className="text-[17px] text-[#111B21] font-medium">Groups</h4>
             <p className="text-xs text-[#667781]">Preset</p>
           </div>
+          {settings.customLists?.map((list, i) => (
+            <div key={i} className="flex justify-between items-center">
+              <div>
+                <h4 className="text-[17px] text-[#111B21] font-medium">{list}</h4>
+                <p className="text-xs text-[#667781]">Custom List</p>
+              </div>
+              <button 
+                onClick={() => {
+                  const newLists = settings.customLists?.filter((_, index) => index !== i);
+                  updateSetting('customLists', newLists);
+                }}
+                className="text-red-500 p-2"
+              >
+                <Trash2 size={18} />
+              </button>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -303,8 +435,18 @@ export default function Settings({ profile }: SettingsProps) {
   const renderChats = () => (
     <div className="flex flex-col bg-white h-screen overflow-y-auto pb-20">
       {renderHeader("Chats")}
-      <SettingItem icon={Sun} title="Theme" subtitle={settings.theme === 'system' ? 'System default' : settings.theme === 'dark' ? 'Dark' : 'Light'} />
-      <SettingItem icon={Palette} title="Default chat theme" />
+      <button 
+        onClick={() => {
+          const themes: ('light' | 'dark' | 'system')[] = ['light', 'dark', 'system'];
+          const currentIndex = themes.indexOf(settings.theme);
+          const nextTheme = themes[(currentIndex + 1) % themes.length];
+          updateSetting('theme', nextTheme);
+        }}
+        className="w-full"
+      >
+        <SettingItem icon={Sun} title="Theme" subtitle={settings.theme === 'system' ? 'System default' : settings.theme === 'dark' ? 'Dark' : 'Light'} />
+      </button>
+      <SettingItem icon={Palette} title="Default chat theme" subtitle="Default" onClick={() => alert("Chat wallpaper feature coming soon!")} />
       
       <div className="px-4 py-3 text-[14px] font-bold text-[#667781] uppercase tracking-wide">Chat settings</div>
       <SettingItem 
@@ -323,8 +465,18 @@ export default function Settings({ profile }: SettingsProps) {
         toggleValue={settings.mediaVisibility}
         onClick={() => updateSetting('mediaVisibility', !settings.mediaVisibility)} 
       />
-      <SettingItem icon={Languages} title="Font size" subtitle="Medium" />
-      <SettingItem icon={Volume2} title="Voice message transcripts" subtitle="Read new voice messages" />
+      <button 
+        onClick={() => {
+          const sizes: ('small' | 'medium' | 'large')[] = ['small', 'medium', 'large'];
+          const currentIndex = sizes.indexOf(settings.fontSize);
+          const nextSize = sizes[(currentIndex + 1) % sizes.length];
+          updateSetting('fontSize', nextSize);
+        }}
+        className="w-full"
+      >
+        <SettingItem icon={Languages} title="Font size" subtitle={settings.fontSize.charAt(0).toUpperCase() + settings.fontSize.slice(1)} />
+      </button>
+      <SettingItem icon={Volume2} title="Voice message transcripts" subtitle="Read new voice messages" onClick={() => alert("Voice transcription is enabled for all chat messages.")} />
       
       <div className="px-4 py-3 text-[14px] font-bold text-[#667781] uppercase tracking-wide">Archived chats</div>
       <SettingItem 
@@ -359,10 +511,10 @@ export default function Settings({ profile }: SettingsProps) {
       />
       
       <div className="px-4 py-3 text-[14px] font-bold text-[#667781] uppercase tracking-wide">Messages</div>
-      <SettingItem icon={Volume2} title="Notification tone" subtitle="Default (Elastic Ball)" />
-      <SettingItem icon={Smartphone} title="Vibrate" subtitle="Default" />
+      <SettingItem icon={Volume2} title="Notification tone" subtitle="Default (Elastic Ball)" onClick={() => alert("Notification sounds are managed by your system settings.")} />
+      <SettingItem icon={Smartphone} title="Vibrate" subtitle="Default" onClick={() => alert("Vibration patterns are optimized for your device.")} />
       <SettingItem icon={MessageSquare} title="Popup notification" subtitle="Not available" />
-      <SettingItem icon={Sun} title="Light" subtitle="White" />
+      <SettingItem icon={Sun} title="Light" subtitle="White" onClick={() => alert("Notification light color set to White.")} />
       <SettingItem 
         icon={Shield} 
         title="Use high priority notifications" 

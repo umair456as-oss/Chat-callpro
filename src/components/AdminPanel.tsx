@@ -2208,7 +2208,7 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
                   <div className="relative group">
                     <div className="w-48 h-48 rounded-full bg-[#1e1e1e] border-4 border-[#333333] overflow-hidden flex items-center justify-center shadow-2xl transition-transform group-hover:scale-105">
                       <img 
-                        src={appSettings?.appLogoUrl || 'https://storage.googleapis.com/test-media-objects/643ljz7fuma5cdqt7xpc5p/75971609428/7f8a7065-27a3-4903-8898-d142b655da03.png'} 
+                        src={appSettings?.appLogoUrl || 'https://avatar.vercel.sh/ulfah-chat?size=128&text=UC&bg=0f4c5c&color=ffd700'} 
                         className="w-full h-full object-cover"
                         alt="Current Logo"
                         referrerPolicy="no-referrer"
