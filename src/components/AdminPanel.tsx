@@ -14,7 +14,7 @@ import {
   ChevronRight, LayoutGrid, List, BarChart3, Clock, 
   AlertCircle, Info, CheckCircle2, MoreVertical,
   ShieldAlert, MessageSquare, TrendingUp, Send, Database, Shield,
-  Key, Folder, LogOut
+  Key, Folder, LogOut, Image as ImageIcon
 } from 'lucide-react';
 import { formatChatDate, cn, getTime, toSafeDate } from '../utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -25,7 +25,7 @@ import { highlight, languages } from 'prismjs';
 import 'prismjs/components/prism-json';
 import 'prismjs/themes/prism-tomorrow.css';
 
-type AdminTab = 'users' | 'withdrawals' | 'games' | 'announcements' | 'settings' | 'logs' | 'fraud' | 'support' | 'analytics' | 'build';
+type AdminTab = 'users' | 'withdrawals' | 'games' | 'announcements' | 'settings' | 'logs' | 'fraud' | 'support' | 'analytics' | 'build' | 'logo';
 
 interface SupportTicket {
   id?: string;
@@ -175,7 +175,7 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
     return () => unsubscribe();
   }, []);
 
-  const tabs: AdminTab[] = ['users', 'analytics', 'withdrawals', 'games', 'announcements', 'support', 'fraud', 'settings', 'logs', 'build'];
+  const tabs: AdminTab[] = ['users', 'analytics', 'withdrawals', 'games', 'announcements', 'support', 'fraud', 'settings', 'logo', 'logs', 'build'];
 
   const cycleTab = (direction: 'up' | 'down') => {
     const currentIndex = tabs.indexOf(activeTab);
@@ -571,6 +571,13 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
           title="Global Settings"
         >
           <Settings size={20} />
+        </button>
+        <button 
+          onClick={() => setActiveTab('logo')}
+          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'logo' ? "text-white border-l-2 border-[#700122]" : "text-[#858585] hover:text-white")}
+          title="App Logo"
+        >
+          <ImageIcon size={20} />
         </button>
         <button 
           onClick={() => setActiveTab('build')}
@@ -2175,6 +2182,89 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
                       Swipe up/down on the sidebar to quickly switch between admin tabs.
                     </p>
                   </div>
+                </div>
+              </motion.div>
+            )}
+
+            {activeTab === 'logo' && (
+              <motion.div 
+                key="logo"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="space-y-8"
+              >
+                <div className="flex flex-row justify-between items-center bg-[#252526] p-6 rounded-xl border border-[#333333]">
+                  <div>
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                      <ImageIcon size={20} className="text-blue-400" />
+                      App Logo Management
+                    </h2>
+                    <p className="text-sm text-[#858585] mt-1">This logo will be displayed on the loading screen, header, and login page.</p>
+                  </div>
+                </div>
+
+                <div className="bg-[#252526] p-8 rounded-xl border border-[#333333] flex flex-col items-center gap-8">
+                  <div className="relative group">
+                    <div className="w-48 h-48 rounded-full bg-[#1e1e1e] border-4 border-[#333333] overflow-hidden flex items-center justify-center shadow-2xl transition-transform group-hover:scale-105">
+                      <img 
+                        src={appSettings?.appLogoUrl || 'https://storage.googleapis.com/test-media-objects/643ljz7fuma5cdqt7xpc5p/75971609428/7f8a7065-27a3-4903-8898-d142b655da03.png'} 
+                        className="w-full h-full object-cover"
+                        alt="Current Logo"
+                        referrerPolicy="no-referrer"
+                      />
+                    </div>
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-full">
+                       <ImageIcon size={48} className="text-white animate-pulse" />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col items-center gap-4 w-full max-w-sm">
+                    <label className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-[#700122] hover:bg-[#8b012b] text-white font-bold rounded-xl shadow-lg transition-all cursor-pointer group active:scale-95">
+                      <Plus size={24} />
+                      <span className="text-lg">Upload New Logo</span>
+                      <input 
+                        type="file" 
+                        className="hidden" 
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            if (file.size > 800000) {
+                              alert('File is too large. Please select an image under 800KB.');
+                              return;
+                            }
+                            const reader = new FileReader();
+                            reader.onload = async (event) => {
+                              const base64 = event.target?.result as string;
+                              try {
+                                await updateDoc(doc(db, 'settings', 'global'), { appLogoUrl: base64 });
+                                alert('Logo updated successfully across all systems!');
+                              } catch (err) {
+                                console.error('Logo update failed:', err);
+                                alert('Failed to update logo. Please try again.');
+                              }
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                    </label>
+                    <p className="text-[10px] text-[#858585] text-center italic">
+                      Recommended size: 512x512px. Transparent PNG or High-res JPG.<br />
+                      Max file size: 800KB.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-blue-900/10 border border-blue-800/30 p-6 rounded-xl space-y-3">
+                  <h4 className="text-blue-400 font-bold flex items-center gap-2">
+                    <Info size={16} />
+                    Dynamic Update System
+                  </h4>
+                  <p className="text-xs text-[#858585] leading-relaxed">
+                    Once you upload a new logo, our <strong>Real-time State Sync</strong> system automatically pushes the change to all connected users. No page refresh is required for the changes to take effect in the header and home screen empty states.
+                  </p>
                 </div>
               </motion.div>
             )}

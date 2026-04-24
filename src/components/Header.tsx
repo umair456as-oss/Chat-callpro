@@ -11,9 +11,11 @@ import { cn } from '../utils';
 interface HeaderProps {
   profile: UserProfile;
   onSearch: (query: string) => void;
+  logoUrl?: string;
 }
 
-export default function Header({ profile, onSearch }: HeaderProps) {
+export default function Header({ profile, onSearch, logoUrl }: HeaderProps) {
+  const DEFAULT_LOGO = 'https://storage.googleapis.com/test-media-objects/643ljz7fuma5cdqt7xpc5p/75971609428/7f8a7065-27a3-4903-8898-d142b655da03.png';
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
@@ -132,15 +134,25 @@ export default function Header({ profile, onSearch }: HeaderProps) {
         <div className="flex items-center gap-3">
           <AnimatePresence mode="wait">
             {!isSearchExpanded ? (
-              <motion.h1 
+              <motion.div 
                 key="title"
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
-                className="text-[22px] font-bold text-[#25D366] tracking-tight"
+                className="flex items-center gap-2"
               >
-                Ulfah Chat
-              </motion.h1>
+                <div className="w-8 h-8 rounded-full overflow-hidden shadow-sm">
+                  <img 
+                    src={logoUrl || DEFAULT_LOGO} 
+                    className="w-full h-full object-cover"
+                    alt="Logo"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+                <h1 className="text-[22px] font-bold text-[#25D366] tracking-tight">
+                  Ulfah Chat
+                </h1>
+              </motion.div>
             ) : null}
           </AnimatePresence>
         </div>

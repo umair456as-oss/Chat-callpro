@@ -99,6 +99,7 @@ export interface AppSettings {
   isAdMobEnabled: boolean;
   isAdMobBannerEnabled: boolean;
   vapidKey?: string;
+  appLogoUrl?: string;
 }
 
 export interface SupportTicket {
