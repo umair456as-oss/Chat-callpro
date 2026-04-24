@@ -27,7 +27,7 @@ import GlobalBannerAd from './components/GlobalBannerAd';
 import { motion, AnimatePresence } from 'motion/react';
 
 const DEFAULT_VAPID_KEY = 'BMzgLSxYxgUSrjLkyEYhCqMJflI2nISGKbKU8xBR_vEqbHeNK59_ibPl6mEPpQ5gGve7qQYc7LuZmkz0juS-wRo';
-const DEFAULT_APP_LOGO = 'https://avatar.vercel.sh/ulfah-chat?size=128&text=UC&bg=0f4c5c&color=ffd700';
+const DEFAULT_APP_LOGO = 'https://img.icons8.com/deco/200/000000/mosque.png'; // Improved high-quality fallback logo placeholder
 
 export default function App() {
   const { user, profile, loading } = useAuth();

@@ -776,8 +776,9 @@ export default function ChatWindow({ chat, currentUser, onBack, appSettings }: C
               referrerPolicy="no-referrer"
             />
             <div className="flex flex-col">
-              <h3 className="font-semibold text-[#111B21] text-[15px] leading-tight">
+              <h3 className="font-semibold text-[#111B21] text-[15px] leading-tight flex items-center gap-1">
                 {chat.displayName}
+                {chat.isVerified && <BadgeCheck size={14} className="text-[#3b82f6] fill-[#3b82f6]/10 flex-shrink-0" />}
               </h3>
               <p className="text-[11px] text-[#667781]">
                 {chat.isOnline ? 'Online' : 'Last seen today'}

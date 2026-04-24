@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, MoreVertical, User, Wallet, Shield, Settings, LogOut, X, Camera, Check, Edit2, Key, Trash2 } from 'lucide-react';
+import { Search, MoreVertical, User, Wallet, Shield, Settings, LogOut, X, Camera, Check, Edit2, Key, Trash2, BadgeCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebase';
 import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
@@ -15,7 +15,7 @@ interface HeaderProps {
 }
 
 export default function Header({ profile, onSearch, logoUrl }: HeaderProps) {
-  const DEFAULT_LOGO = 'https://avatar.vercel.sh/ulfah-chat?size=128&text=UC&bg=0f4c5c&color=ffd700';
+  const DEFAULT_LOGO = 'https://img.icons8.com/deco/200/000000/mosque.png';
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
@@ -328,7 +328,10 @@ export default function Header({ profile, onSearch, logoUrl }: HeaderProps) {
                         </div>
                       ) : (
                         <>
-                          <h4 className="text-2xl font-bold text-gray-800">{profile.displayName}</h4>
+                          <h4 className="text-2xl font-bold text-gray-800 flex items-center gap-1">
+                            {profile.displayName}
+                            {profile.isVerified && <BadgeCheck size={20} className="text-[#3b82f6] fill-[#3b82f6]/10 flex-shrink-0" />}
+                          </h4>
                           <button onClick={() => setIsEditingName(true)} className="text-gray-400 hover:text-[#25D366]">
                             <Edit2 size={16} />
                           </button>

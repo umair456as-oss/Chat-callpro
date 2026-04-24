@@ -15,7 +15,7 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
 
-  const DEFAULT_LOGO = 'https://avatar.vercel.sh/ulfah-chat?size=128&text=UC&bg=0f4c5c&color=ffd700';
+  const DEFAULT_LOGO = 'https://img.icons8.com/deco/200/000000/mosque.png';
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'settings', 'global'), (doc) => {

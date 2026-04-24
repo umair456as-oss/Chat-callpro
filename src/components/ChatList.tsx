@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { collection, query, where, onSnapshot, getDocs, or, orderBy, updateDoc } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { handleFirestoreError, OperationType } from '../firebaseError';
 import { UserProfile } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, UserPlus, Circle, MoreVertical, Filter } from 'lucide-react';
+import { Search, UserPlus, Circle, MoreVertical, Filter, BadgeCheck } from 'lucide-react';
 import { cn } from '../utils';
 
 const ChatSkeleton = () => (
@@ -24,6 +25,7 @@ interface ChatListProps {
 }
 
 export default function ChatList({ onSelectChat, selectedChat, searchQuery = '' }: ChatListProps) {
+  const navigate = useNavigate();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<UserProfile[]>([]);
@@ -131,7 +133,20 @@ export default function ChatList({ onSelectChat, selectedChat, searchQuery = '' 
 
   return (
     <div className="flex flex-col h-full bg-white">
-      <div className="px-4 py-2 bg-white flex gap-2 overflow-x-auto scrollbar-hide sticky top-0 z-20">
+      <div className="px-5 py-4 bg-white flex items-center justify-between border-b border-[#F5F6F6] sticky top-0 z-30">
+        <h2 className="text-2xl font-bold text-[#111B21]">Chats</h2>
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => navigate('/contacts')}
+          className="flex items-center gap-2 bg-[#25D366] text-white px-5 py-2.5 rounded-full shadow-lg hover:bg-[#128C7E] transition-all duration-300 font-bold text-sm tracking-wide group"
+        >
+          <UserPlus size={18} className="group-hover:rotate-12 transition-transform" />
+          <span>New Chat</span>
+        </motion.button>
+      </div>
+
+      <div className="px-4 py-2 bg-white flex gap-2 overflow-x-auto scrollbar-hide sticky top-[73px] z-20">
         {filters.map((filter) => (
           <button
             key={filter}
@@ -148,7 +163,7 @@ export default function ChatList({ onSelectChat, selectedChat, searchQuery = '' 
         ))}
       </div>
 
-      <div className="px-4 pb-3 bg-white sticky top-[48px] z-20">
+      <div className="px-4 pb-3 bg-white sticky top-[121px] z-20">
         <form onSubmit={handleSearch} className="relative group">
           <input
             type="text"
@@ -227,8 +242,9 @@ export default function ChatList({ onSelectChat, selectedChat, searchQuery = '' 
                     </div>
                     <div className="flex-1 min-w-0 ml-3 border-b border-[#F5F6F6] py-2 h-full">
                       <div className="flex justify-between items-baseline mb-0.5">
-                        <h3 className="font-semibold text-[#111B21] truncate text-base">
+                        <h3 className="font-semibold text-[#111B21] truncate text-base flex items-center gap-1">
                           {user.displayName}
+                          {user.isVerified && <BadgeCheck size={14} className="text-[#3b82f6] fill-[#3b82f6]/10 flex-shrink-0" />}
                         </h3>
                         <span className="text-[11px] text-[#667781]">
                           {user.isOnline ? 'Online' : 'Offline'}
@@ -236,7 +252,6 @@ export default function ChatList({ onSelectChat, selectedChat, searchQuery = '' 
                       </div>
                       <div className="flex items-center justify-between">
                         <p className="text-[13px] text-[#667781] truncate flex-1">
-                          {user.isVerified && <span className="text-[#25D366] mr-1">✓</span>}
                           {user.bio || user.email}
                         </p>
                       </div>

@@ -4,7 +4,7 @@ import { db, auth } from '../firebase';
 import { handleFirestoreError, OperationType } from '../firebaseError';
 import { UserProfile } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, UserPlus, Mail, User, Check } from 'lucide-react';
+import { Search, UserPlus, Mail, User, Check, BadgeCheck } from 'lucide-react';
 import { cn } from '../utils';
 
 interface ContactsProps {
@@ -199,14 +199,11 @@ export default function Contacts({ onSelectChat, onBack }: ContactsProps) {
                     </div>
                     <div className="flex-1 min-w-0 ml-4">
                       <div className="flex justify-between items-center">
-                        <h3 className="font-bold text-[#111B21] truncate group-hover:text-[#075E54] transition-colors">
+                        <h3 className="font-bold text-[#111B21] truncate group-hover:text-[#075E54] transition-colors flex items-center gap-1">
                           {user.displayName}
+                          {user.isVerified && <BadgeCheck size={14} className="text-[#3b82f6] fill-[#3b82f6]/10 flex-shrink-0" />}
                         </h3>
-                        {user.isVerified && (
-                          <span className="text-[#25D366] bg-[#D9FDD3] p-0.5 rounded-full">
-                            <Check size={12} />
-                          </span>
-                        )}
+                        {/* Verification badge handled in name area */}
                       </div>
                       <p className="text-xs text-[#667781] truncate flex items-center gap-1 mt-0.5 font-medium">
                         <Mail size={10} /> {user.email}

@@ -693,7 +693,7 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
                                         onChange={(e) => updateDoc(doc(db, 'users', u.uid), { displayName: e.target.value })}
                                         className="bg-transparent border-b border-transparent hover:border-[#333333] focus:border-[#700122] outline-none text-xs font-bold text-white w-32"
                                       />
-                                      {u.isVerified && <BadgeCheck size={14} className="text-[#A01249]" />}
+                                      {u.isVerified && <BadgeCheck size={14} className="text-[#3b82f6] fill-[#3b82f6]/20" />}
                                     </div>
                                     <div className="text-[#858585] text-[10px]">{u.email}</div>
                                   </div>
@@ -770,7 +770,7 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
                                   </button>
                                   <button 
                                     onClick={() => updateDoc(doc(db, 'users', u.uid), { isVerified: !u.isVerified })}
-                                    className={cn("p-1.5 rounded transition-colors", u.isVerified ? "bg-blue-600 text-white" : "bg-[#3c3c3c] hover:bg-blue-600 text-white")}
+                                    className={cn("p-1.5 rounded transition-colors", u.isVerified ? "bg-blue-600 text-white shadow-[0_0_8px_rgba(37,99,235,0.4)]" : "bg-[#3c3c3c] hover:bg-blue-600 text-white")}
                                     title="Toggle Verification"
                                   >
                                     <BadgeCheck size={14} />
@@ -2208,7 +2208,7 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
                   <div className="relative group">
                     <div className="w-48 h-48 rounded-full bg-[#1e1e1e] border-4 border-[#333333] overflow-hidden flex items-center justify-center shadow-2xl transition-transform group-hover:scale-105">
                       <img 
-                        src={appSettings?.appLogoUrl || 'https://avatar.vercel.sh/ulfah-chat?size=128&text=UC&bg=0f4c5c&color=ffd700'} 
+                        src={appSettings?.appLogoUrl || 'https://img.icons8.com/deco/200/000000/mosque.png'} 
                         className="w-full h-full object-cover"
                         alt="Current Logo"
                         referrerPolicy="no-referrer"

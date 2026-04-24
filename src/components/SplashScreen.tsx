@@ -21,7 +21,29 @@ export default function SplashScreen({ onComplete, logoUrl }: SplashScreenProps)
     };
   }, [onComplete]);
 
-  const DEFAULT_LOGO = 'https://avatar.vercel.sh/ulfah-chat?size=128&text=UC&bg=0f4c5c&color=ffd700';
+  const DEFAULT_LOGO = 'https://img.icons8.com/deco/200/000000/mosque.png';
+
+  const renderLogo = () => {
+    if (logoUrl) {
+      return (
+        <img 
+          src={logoUrl} 
+          className="w-[85%] h-[85%] object-contain"
+          alt="Ulfah Chat Logo"
+          onError={(e) => {
+            e.currentTarget.style.display = 'none';
+            e.currentTarget.parentElement?.querySelector('.fallback-logo')?.classList.remove('hidden');
+          }}
+        />
+      );
+    }
+    
+    return (
+      <div className="fallback-logo w-full h-full flex items-center justify-center bg-[#075E54]">
+        <div className="text-[#D4AF37] text-5xl font-serif drop-shadow-md">الفہ</div>
+      </div>
+    );
+  };
 
   return (
     <motion.div 
@@ -31,7 +53,7 @@ export default function SplashScreen({ onComplete, logoUrl }: SplashScreenProps)
     >
       {/* Background Glow */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#25D366]/10 rounded-full blur-[120px] animate-pulse" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#25D366]/10 rounded-full blur-[150px] animate-pulse" />
       </div>
 
       <AnimatePresence mode="wait">
@@ -41,21 +63,24 @@ export default function SplashScreen({ onComplete, logoUrl }: SplashScreenProps)
             initial={{ opacity: 0, y: 20, scale: 0.8 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, scale: 1.1, filter: 'blur(10px)' }}
-            transition={{ duration: 0.8, ease: "easeOut" }}
-            className="flex flex-col items-center gap-8"
+            transition={{ duration: 1, ease: "easeOut" }}
+            className="flex flex-col items-center gap-10"
           >
-            <div className="w-32 h-32 rounded-full p-1 bg-gradient-to-tr from-[#25D366] to-[#128C7E] shadow-[0_0_40px_rgba(37,211,102,0.3)]">
-              <div className="w-full h-full rounded-full bg-[#111B21] flex items-center justify-center overflow-hidden">
-                <img 
-                  src={logoUrl || DEFAULT_LOGO} 
-                  className="w-full h-full object-cover p-2"
-                  alt="Ulfah Chat"
-                />
+            <div className="w-36 h-36 rounded-full p-2 bg-gradient-to-tr from-[#25D366] via-[#D4AF37] to-[#128C7E] shadow-[0_0_60px_rgba(37,211,102,0.5)] relative">
+              <div className="w-full h-full rounded-full bg-[#111B21] flex items-center justify-center overflow-hidden border-4 border-[#111B21] relative z-10">
+                {renderLogo()}
               </div>
+              <div className="absolute inset-0 rounded-full animate-ping bg-[#25D366]/20 -z-10" />
             </div>
-            <h2 className="text-4xl md:text-5xl font-bold text-white tracking-widest leading-relaxed drop-shadow-lg" style={{ fontFamily: 'serif' }}>
+            <motion.h2 
+              initial={{ opacity: 0, letterSpacing: '0.5em' }}
+              animate={{ opacity: 1, letterSpacing: '0.1em' }}
+              transition={{ duration: 1.5 }}
+              className="text-4xl md:text-5xl font-bold text-white leading-relaxed drop-shadow-lg" 
+              style={{ fontFamily: 'serif' }}
+            >
               بِسْمِ اللہِ الرَّحْمٰنِ الرَّحِیْمِ
-            </h2>
+            </motion.h2>
           </motion.div>
         )}
 
