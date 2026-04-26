@@ -4,7 +4,7 @@ import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp,
 import { db } from '../firebase';
 import { UserProfile, Message, AppSettings } from '../types';
 import { handleFirestoreError, OperationType } from '../firebaseError';
-import { Send, Plus, Search, MoreVertical, Smile, Mic, Gamepad2, ArrowLeft, Image, BadgeCheck, XCircle, Phone, Play, Pause, Trash2, Share2, Check, Camera, Wallet, File, Video, FileText, Download } from 'lucide-react';
+import { Send, Plus, Search, MoreVertical, Smile, Mic, Gamepad2, ArrowLeft, Image, BadgeCheck, XCircle, Phone, Play, Pause, Trash2, Share2, Check, Camera, Wallet, File, Video, FileText, Download, RefreshCw } from 'lucide-react';
 import { formatMessageTime, cn, formatChatDate, toSafeDate } from '../utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { updateDoc, doc } from 'firebase/firestore';
@@ -334,50 +334,58 @@ export default function ChatWindow({ chat, currentUser, onBack, appSettings }: C
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [fileType, setFileType] = useState<'image' | 'video' | 'document' | 'voice'>('image');
   const [isUploading, setIsUploading] = useState(false);
+  const [previewFile, setPreviewFile] = useState<{file: File, url: string, type: string} | null>(null);
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Strict size limit for Firestore documents (approx 700KB for base64)
     if (file.size > 750000) {
-      alert('File is too large. Please send files smaller than 750KB. For larger files, use a sharing link.');
+      alert('File is too large. Please send files smaller than 750KB.');
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
 
-    setIsUploading(true);
     const reader = new FileReader();
-    reader.onloadend = async () => {
-      const base64 = reader.result as string;
-      const msg: Message = {
-        senderId: currentUser.uid,
-        receiverId: chat.uid,
-        text: fileType === 'image' ? '📷 Image' : fileType === 'video' ? '🎥 Video' : `📄 ${file.name}`,
-        timestamp: serverTimestamp(),
-        status: 'sent',
-        type: fileType as any,
-        fileUrl: base64,
-        fileName: file.name,
-        fileSize: (file.size / 1024).toFixed(1) + ' KB'
-      };
-
-      try {
-        await addDoc(collection(db, 'messages'), msg);
-        setShowGamesMenu(false);
-      } catch (err) {
-        console.error('File upload failed:', err);
-        alert('Failed to send file. Please try again.');
-      } finally {
-        setIsUploading(false);
-        if (fileInputRef.current) fileInputRef.current.value = '';
-      }
-    };
-    reader.onerror = () => {
-      alert('Error reading file. Please try another one.');
-      setIsUploading(false);
+    reader.onloadend = () => {
+      setPreviewFile({
+        file: file,
+        url: reader.result as string,
+        type: fileType
+      });
     };
     reader.readAsDataURL(file);
+  };
+
+  const sendFile = async () => {
+    if (!previewFile) return;
+    
+    setIsUploading(true);
+    const { file, url, type } = previewFile;
+    
+    const msg: Message = {
+      senderId: currentUser.uid,
+      receiverId: chat.uid,
+      text: type === 'image' ? '📷 Image' : type === 'video' ? '🎥 Video' : `📄 ${file.name}`,
+      timestamp: serverTimestamp(),
+      status: 'sent',
+      type: type as any,
+      fileUrl: url,
+      fileName: file.name,
+      fileSize: (file.size / 1024).toFixed(1) + ' KB'
+    };
+
+    try {
+      await addDoc(collection(db, 'messages'), msg);
+      setPreviewFile(null);
+      setShowGamesMenu(false);
+    } catch (err) {
+      console.error('File upload failed:', err);
+      alert('Failed to send file.');
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   const triggerFileSelect = (type: 'image' | 'video' | 'document') => {
@@ -914,6 +922,76 @@ export default function ChatWindow({ chat, currentUser, onBack, appSettings }: C
           />
         ))}
       </div>
+
+      {/* Media Preview Modal */}
+      <AnimatePresence>
+        {previewFile && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[1000] bg-black/90 backdrop-blur-xl flex flex-col items-center justify-center p-4 md:p-10"
+          >
+            <div className="w-full max-w-2xl bg-[#111B21] rounded-3xl overflow-hidden shadow-2xl flex flex-col border border-white/10">
+              <div className="p-4 flex items-center justify-between border-b border-white/5 bg-[#202C33]">
+                <div className="flex items-center gap-3">
+                  {previewFile.type === 'image' && <Image className="text-[#00A884]" />}
+                  {previewFile.type === 'video' && <Video className="text-[#ef4444]" />}
+                  {previewFile.type === 'document' && <FileText className="text-blue-500" />}
+                  <span className="text-white font-medium truncate max-w-[200px]">{previewFile.file.name}</span>
+                </div>
+                <button 
+                  onClick={() => setPreviewFile(null)}
+                  className="p-2 text-white/70 hover:bg-white/10 rounded-full transition-colors"
+                >
+                  <XCircle size={24} />
+                </button>
+              </div>
+
+              <div className="flex-1 min-h-[300px] max-h-[60vh] flex items-center justify-center bg-[#0d1418] p-4">
+                {previewFile.type === 'image' && (
+                  <img src={previewFile.url} className="max-w-full max-h-full object-contain rounded-lg shadow-lg" alt="Preview" />
+                )}
+                {previewFile.type === 'video' && (
+                  <video src={previewFile.url} controls className="max-w-full max-h-full rounded-lg" />
+                )}
+                {previewFile.type === 'document' && (
+                  <div className="flex flex-col items-center gap-4 text-center">
+                    <div className="w-24 h-24 bg-blue-500/10 rounded-3xl flex items-center justify-center text-blue-500 shadow-inner">
+                      <FileText size={48} />
+                    </div>
+                    <div>
+                      <p className="text-white text-lg font-bold">{previewFile.file.name}</p>
+                      <p className="text-[#8696a0] text-sm">{(previewFile.file.size / 1024).toFixed(1)} KB</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-6 bg-[#202C33] flex items-center justify-between gap-4">
+                <button 
+                  onClick={() => setPreviewFile(null)}
+                  className="flex-1 font-bold text-white py-4 rounded-2xl border border-white/10 hover:bg-white/5 transition-all Urdu"
+                >
+                  کینسل (Cancel)
+                </button>
+                <button 
+                  onClick={sendFile}
+                  disabled={isUploading}
+                  className="flex-[2] bg-[#25D366] hover:bg-[#128C7E] text-white font-bold py-4 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-3 active:scale-95 Urdu disabled:opacity-50"
+                >
+                  {isUploading ? (
+                    <RefreshCw size={24} className="animate-spin" />
+                  ) : (
+                    <Send size={24} />
+                  )}
+                  <span>ارسال کریں (Send)</span>
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Input Area */}
       <div className="p-2 pb-4 bg-[#F0F2F5]/80 backdrop-blur-md flex flex-col gap-2 z-10 relative">
