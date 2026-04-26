@@ -910,125 +910,147 @@ function MemoryMatch({ onWin, loading, onRestart }: { onWin: (reward: number) =>
 }
 
 function WatchEarn({ onWin, loading, onRestart }: { onWin: (reward: number) => void, loading: boolean, onRestart: () => void }) {
-  const [watching, setWatching] = useState(false);
+  const [adLoading, setAdLoading] = useState(false);
   const [adReady, setAdReady] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
-  const rewardedSlotRef = useRef<any>(null);
+  const [showPrePopup, setShowPrePopup] = useState(false);
 
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, 'settings', 'global'), (doc) => {
-      if (doc.exists()) setAppSettings(doc.data() as AppSettings);
-    });
-    return () => unsub();
+    // Check for Monetag SDK
+    const checkSDK = setInterval(() => {
+      // @ts-ignore
+      if (window.Tag && typeof window.Tag.show === 'function') {
+        setAdReady(true);
+        clearInterval(checkSDK);
+      }
+    }, 1000);
+    return () => clearInterval(checkSDK);
   }, []);
 
-  useEffect(() => {
-    if (appSettings && !appSettings.isAdMobEnabled) {
-      setError("AdMob is currently disabled by administrator.");
-      return;
-    }
-
-    const googletag = (window as any).googletag;
-    if (!googletag) {
-      setError("Ad SDK not loaded. Please disable ad-blocker.");
-      return;
-    }
-
-    googletag.cmd.push(() => {
-      const adUnitPath = '/5355571256728358/6016645058';
-      
-      rewardedSlotRef.current = googletag.defineOutOfPageSlot(
-        adUnitPath,
-        googletag.enums.OutOfPageFormat.REWARDED
-      );
-
-      if (rewardedSlotRef.current) {
-        rewardedSlotRef.current.addService(googletag.pubads());
-
-        googletag.pubads().addEventListener('rewardedSlotReady', (event: any) => {
-          if (event.slot === rewardedSlotRef.current) {
-            setAdReady(true);
-          }
-        });
-
-        googletag.pubads().addEventListener('rewardedSlotGranted', (event: any) => {
-          if (event.slot === rewardedSlotRef.current) {
-            const rewardAmount = appSettings?.adEarningRate || 5;
-            onWin(rewardAmount);
-          }
-        });
-
-        googletag.pubads().addEventListener('rewardedSlotClosed', (event: any) => {
-          if (event.slot === rewardedSlotRef.current) {
-            setWatching(false);
-            setAdReady(false);
-            googletag.destroySlots([rewardedSlotRef.current]);
-            rewardedSlotRef.current = null;
+  const triggerAd = () => {
+    setShowPrePopup(false);
+    setAdLoading(true);
+    
+    // @ts-ignore
+    if (window.Tag && typeof window.Tag.show === 'function') {
+      try {
+        // @ts-ignore
+        window.Tag.show({
+          zone: 233407,
+          onReward: () => {
+            onWin(20); // Give Rs. 20 for watching Monetag reward ad
+            setAdLoading(false);
+          },
+          onError: (err: any) => {
+            console.error('Monetag Ad Error:', err);
+            alert('Something went wrong with the ad. Please try again.');
+            setAdLoading(false);
             onRestart();
+          },
+          onClose: () => {
+            setAdLoading(false);
           }
         });
-
-        googletag.enableServices();
-        googletag.display(rewardedSlotRef.current);
-      } else {
-        setError("Failed to initialize ad slot.");
+      } catch (e) {
+        console.error('Error showing Monetag ad:', e);
+        setAdLoading(false);
       }
-    });
+    } else {
+      alert('Ads are still loading, please wait a few seconds.');
+      setAdLoading(false);
+    }
+  };
 
-    return () => {
-      googletag.cmd.push(() => {
-        if (rewardedSlotRef.current) {
-          googletag.destroySlots([rewardedSlotRef.current]);
-        }
-      });
-    };
-  }, [appSettings]);
-
-  const showAd = () => {
-    if (!adReady || watching || loading) return;
-    const googletag = (window as any).googletag;
-    googletag.cmd.push(() => {
-      googletag.pubads().refresh([rewardedSlotRef.current]);
-    });
-    setWatching(true);
+  const handleWatchAdClick = () => {
+    if (adLoading || !adReady) return;
+    setShowPrePopup(true);
   };
 
   return (
-    <div className="text-center w-full max-w-md">
-      <div className="aspect-video bg-black rounded-3xl mb-8 flex flex-col items-center justify-center relative overflow-hidden group p-6">
-        {error ? (
-          <div className="text-red-500 text-sm font-bold flex flex-col items-center gap-2">
-            <XCircle size={48} />
-            <p>{error}</p>
-          </div>
-        ) : !watching ? (
-          <div className="flex flex-col items-center gap-4">
-            <button 
-              onClick={showAd} 
-              disabled={!adReady || loading}
-              className={cn(
-                "text-white hover:scale-110 transition-transform flex flex-col items-center gap-3",
-                (!adReady || loading) && "opacity-50 cursor-not-allowed"
-              )}
+    <div className="text-center w-full max-w-md mx-auto">
+      <AnimatePresence>
+        {showPrePopup && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-white rounded-3xl p-8 max-w-xs w-full text-center shadow-2xl Urdu"
             >
-              <PlayCircle size={80} className={cn(adReady && "text-[#700122] animate-pulse")} />
-              <span className="font-bold text-lg">{adReady ? 'Watch Ad to Earn' : 'Loading Ad...'}</span>
-            </button>
-          </div>
-        ) : (
-          <div className="text-white text-center">
-            <div className="w-16 h-16 border-4 border-[#700122] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-            <p className="text-sm font-bold mb-2">Ad in Progress...</p>
-          </div>
+              <div className="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-600 mx-auto mb-6">
+                <Clock size={40} />
+              </div>
+              <h3 className="text-2xl font-bold text-[#111B21] mb-4">ضروری ہدایت</h3>
+              <p className="text-[#54656F] text-lg leading-relaxed mb-8">
+                اشتہار کھلنے کے بعد کم از کم <span className="text-[#ef4444] font-bold">10 سے 15 سیکنڈ</span> تک وہاں رکیں تاکہ آپ کا انعام کنفرم ہو سکے۔
+              </p>
+              <button 
+                onClick={triggerAd}
+                className="w-full bg-[#25D366] text-white font-bold py-4 rounded-2xl shadow-lg hover:bg-[#128C7E] transition-all active:scale-95 text-xl"
+              >
+                ٹھیک ہے (OK)
+              </button>
+            </motion.div>
+          </motion.div>
         )}
-      </div>
-      <div className="bg-white/50 backdrop-blur-sm p-4 rounded-2xl border border-white/20 shadow-sm">
-        <div className="flex items-center justify-center gap-2 text-[#700122] font-bold mb-1">
-          <Trophy size={16} />
-          <span>Reward: Rs. {(appSettings?.adEarningRate || 5).toFixed(2)}</span>
+      </AnimatePresence>
+
+      <div className="aspect-video bg-gradient-to-br from-[#111B21] to-[#202C33] rounded-3xl mb-8 flex flex-col items-center justify-center relative overflow-hidden shadow-2xl border border-[#25D366]/20 p-8">
+        <div className="absolute inset-0 opacity-10 pointer-events-none">
+          <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-[#25D366] via-transparent to-transparent" />
         </div>
-        <p className="text-[#667781] text-[10px] uppercase tracking-tighter">Watch the full video to claim your reward</p>
+        
+        <div className="flex flex-col items-center gap-6 relative z-10">
+          <div className="w-24 h-24 bg-[#25D366]/10 rounded-full flex items-center justify-center text-[#25D366] animate-pulse">
+            <PlayCircle size={64} />
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-white text-xl font-bold Urdu">ویڈیو دیکھیں اور پیسے کمائیں</h3>
+            <p className="text-[#8696a0] text-sm">Earn Rs. 20 instantly for every video watched!</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-6">
+        <div className="bg-white p-5 rounded-2xl border border-[#E9EDF0] shadow-sm text-left Urdu">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center text-yellow-600">
+              <Zap size={18} fill="currentColor" />
+            </div>
+            <span className="font-bold text-[#111B21]">Daily Bonus Earning</span>
+          </div>
+          <p className="text-[#54656F] text-[15px] leading-relaxed mb-1">
+            صرف ایک اشتہاری ویڈیو دیکھیں اور اپنے اکاؤنٹ میں <span className="font-bold text-[#00A884]">20 روپے</span> حاصل کریں۔
+          </p>
+          <p className="text-[#8696a0] text-xs">
+            Watch a rewarded video and get Rs. 20 credited to your wallet immediately.
+          </p>
+        </div>
+
+        <button
+          onClick={handleWatchAdClick}
+          disabled={adLoading || loading}
+          className={cn(
+            "w-full bg-[#25D366] text-white font-bold py-5 px-8 rounded-2xl shadow-[0_10px_20px_rgba(37,211,102,0.3)] hover:bg-[#128C7E] transition-all flex items-center justify-center gap-3 active:scale-95 group",
+            (adLoading || loading) && "opacity-50 cursor-not-allowed"
+          )}
+        >
+          {adLoading ? (
+            <RotateCw className="animate-spin" size={24} />
+          ) : (
+            <PlayCircle size={24} className="group-hover:scale-110 transition-transform" />
+          )}
+          <span>{adLoading ? 'Ad Loading...' : (adReady ? 'Watch Video & Earn Now' : 'Ad SDK Loading...')}</span>
+        </button>
+
+        <div className="flex items-center justify-between text-[11px] text-[#8696a0] font-bold uppercase tracking-widest px-2">
+          <span>Powered by Monetag</span>
+          <span className="text-[#00A884]">Verified Ad Zone</span>
+        </div>
       </div>
     </div>
   );

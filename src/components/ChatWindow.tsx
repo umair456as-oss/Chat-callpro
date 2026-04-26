@@ -4,7 +4,7 @@ import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp,
 import { db } from '../firebase';
 import { UserProfile, Message, AppSettings } from '../types';
 import { handleFirestoreError, OperationType } from '../firebaseError';
-import { Send, Plus, Search, MoreVertical, Smile, Mic, Gamepad2, ArrowLeft, Image, BadgeCheck, XCircle, Phone, Play, Pause, Trash2, Share2, Check, Camera, Wallet } from 'lucide-react';
+import { Send, Plus, Search, MoreVertical, Smile, Mic, Gamepad2, ArrowLeft, Image, BadgeCheck, XCircle, Phone, Play, Pause, Trash2, Share2, Check, Camera, Wallet, File, Video, FileText, Download } from 'lucide-react';
 import { formatMessageTime, cn, formatChatDate, toSafeDate } from '../utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { updateDoc, doc } from 'firebase/firestore';
@@ -105,6 +105,36 @@ const MessageBubble = React.memo(({
         {/* Content */}
         {msg.type === 'voice' ? (
           <VoiceMessage audioUrl={msg.audioUrl || ''} />
+        ) : msg.type === 'image' ? (
+          <div className="relative group max-w-[300px] overflow-hidden rounded-lg">
+            <img 
+              src={msg.fileUrl} 
+              alt="Attached" 
+              className="w-full h-auto object-cover hover:scale-105 transition-transform duration-500 cursor-pointer" 
+              onClick={() => window.open(msg.fileUrl, '_blank')}
+            />
+          </div>
+        ) : msg.type === 'video' ? (
+          <div className="relative group min-w-[200px] max-w-[300px] overflow-hidden rounded-lg bg-black">
+            <video src={msg.fileUrl} controls className="w-full h-auto" />
+          </div>
+        ) : msg.type === 'document' ? (
+          <div className="flex items-center gap-3 p-3 bg-black/5 rounded-lg border border-black/5 min-w-[180px]">
+             <div className="w-10 h-10 bg-[#00A884]/10 rounded-lg flex items-center justify-center text-[#00A884]">
+               <FileText size={20} />
+             </div>
+             <div className="flex-1 overflow-hidden">
+               <p className="text-sm font-medium text-[#111B21] truncate">{msg.fileName}</p>
+               <p className="text-[10px] text-[#667781]">{msg.fileSize}</p>
+             </div>
+             <a 
+              href={msg.fileUrl} 
+              download={msg.fileName} 
+              className="p-2 text-[#00A884] hover:bg-[#00A884]/10 rounded-full transition-colors"
+             >
+               <Download size={18} />
+             </a>
+          </div>
         ) : (
           <p className="text-[#111B21] text-[15px] leading-relaxed break-words pr-14">{msg.text}</p>
         )}
@@ -301,6 +331,61 @@ export default function ChatWindow({ chat, currentUser, onBack, appSettings }: C
   const [messageToForward, setMessageToForward] = useState<Message | null>(null);
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [fileType, setFileType] = useState<'image' | 'video' | 'document' | 'voice'>('image');
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Strict size limit for Firestore documents (approx 700KB for base64)
+    if (file.size > 750000) {
+      alert('File is too large. Please send files smaller than 750KB. For larger files, use a sharing link.');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    setIsUploading(true);
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64 = reader.result as string;
+      const msg: Message = {
+        senderId: currentUser.uid,
+        receiverId: chat.uid,
+        text: fileType === 'image' ? '📷 Image' : fileType === 'video' ? '🎥 Video' : `📄 ${file.name}`,
+        timestamp: serverTimestamp(),
+        status: 'sent',
+        type: fileType as any,
+        fileUrl: base64,
+        fileName: file.name,
+        fileSize: (file.size / 1024).toFixed(1) + ' KB'
+      };
+
+      try {
+        await addDoc(collection(db, 'messages'), msg);
+        setShowGamesMenu(false);
+      } catch (err) {
+        console.error('File upload failed:', err);
+        alert('Failed to send file. Please try again.');
+      } finally {
+        setIsUploading(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      }
+    };
+    reader.onerror = () => {
+      alert('Error reading file. Please try another one.');
+      setIsUploading(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const triggerFileSelect = (type: 'image' | 'video' | 'document') => {
+    setFileType(type);
+    setTimeout(() => {
+      fileInputRef.current?.click();
+    }, 100);
+  };
 
   useEffect(() => {
     // Fetch all users for forwarding
@@ -881,18 +966,33 @@ export default function ChatWindow({ chat, currentUser, onBack, appSettings }: C
             </form>
 
             <div className="flex items-center flex-shrink-0">
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                className="hidden" 
+                onChange={handleFileSelect}
+                accept={fileType === 'image' ? 'image/*' : fileType === 'video' ? 'video/*' : '*/*'}
+              />
               <button 
                 onClick={() => setShowGamesMenu(!showGamesMenu)}
+                disabled={isUploading}
                 className={cn(
                   "p-2.5 text-[#54656F] hover:bg-gray-100 rounded-full transition-colors",
-                  showGamesMenu && "text-[#00A884]"
+                  (showGamesMenu || isUploading) && "text-[#00A884]"
                 )}
               >
-                <Plus size={24} className={cn("transition-transform duration-200", showGamesMenu && "rotate-45")} />
+                {isUploading ? (
+                  <RefreshCw size={24} className="animate-spin" />
+                ) : (
+                  <Plus size={24} className={cn("transition-transform duration-200", showGamesMenu && "rotate-45")} />
+                )}
               </button>
               
               {!newMessage.trim() && (
-                <button className="p-2.5 text-[#54656F] hover:bg-gray-100 rounded-full flex-shrink-0 transition-colors">
+                <button 
+                  onClick={() => triggerFileSelect('image')}
+                  className="p-2.5 text-[#54656F] hover:bg-gray-100 rounded-full flex-shrink-0 transition-colors"
+                >
                   <Camera size={24} />
                 </button>
               )}
@@ -904,25 +1004,52 @@ export default function ChatWindow({ chat, currentUser, onBack, appSettings }: C
                   initial={{ opacity: 0, scale: 0.8, y: 20 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.8, y: 20 }}
-                  className="absolute bottom-[70px] left-2 bg-white rounded-2xl shadow-2xl p-4 w-72 grid grid-cols-3 gap-4 border border-gray-100"
+                  className="absolute bottom-[70px] left-2 bg-white rounded-2xl shadow-2xl p-4 w-80 grid grid-cols-3 gap-2 border border-gray-100 z-[100]"
                 >
                   <div 
+                    onClick={() => triggerFileSelect('image')}
+                    className="flex flex-col items-center gap-1 cursor-pointer hover:bg-gray-50 p-3 rounded-xl transition-colors"
+                  >
+                    <div className="w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center text-white shadow-md">
+                      <Image size={24} />
+                    </div>
+                    <span className="text-[11px] font-bold text-[#54656F]">Gallery</span>
+                  </div>
+                  <div 
+                    onClick={() => triggerFileSelect('document')}
+                    className="flex flex-col items-center gap-1 cursor-pointer hover:bg-gray-50 p-3 rounded-xl transition-colors"
+                  >
+                    <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center text-white shadow-md">
+                      <FileText size={24} />
+                    </div>
+                    <span className="text-[11px] font-bold text-[#54656F]">Document</span>
+                  </div>
+                  <div 
+                    onClick={() => triggerFileSelect('video')}
+                    className="flex flex-col items-center gap-1 cursor-pointer hover:bg-gray-50 p-3 rounded-xl transition-colors"
+                  >
+                    <div className="w-12 h-12 bg-red-500 rounded-full flex items-center justify-center text-white shadow-md">
+                      <Video size={24} />
+                    </div>
+                    <span className="text-[11px] font-bold text-[#54656F]">Video</span>
+                  </div>
+                  <div 
                     onClick={() => { navigate('/games'); setShowGamesMenu(false); }}
-                    className="flex flex-col items-center gap-1 cursor-pointer hover:bg-gray-50 p-2 rounded-xl transition-colors"
+                    className="flex flex-col items-center gap-1 cursor-pointer hover:bg-gray-50 p-3 rounded-xl transition-colors"
                   >
                     <div className="w-12 h-12 bg-pink-500 rounded-full flex items-center justify-center text-white shadow-md">
                       <Gamepad2 size={24} />
                     </div>
-                    <span className="text-[11px] font-medium text-[#54656F]">Games</span>
+                    <span className="text-[11px] font-bold text-[#54656F]">Games</span>
                   </div>
                   <div 
                     onClick={() => { navigate('/wallet'); setShowGamesMenu(false); }}
-                    className="flex flex-col items-center gap-1 cursor-pointer hover:bg-gray-50 p-2 rounded-xl transition-colors"
+                    className="flex flex-col items-center gap-1 cursor-pointer hover:bg-gray-50 p-3 rounded-xl transition-colors"
                   >
                     <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center text-white shadow-md">
                       <Wallet size={24} />
                     </div>
-                    <span className="text-[11px] font-medium text-[#54656F]">Wallet</span>
+                    <span className="text-[11px] font-bold text-[#54656F]">Wallet</span>
                   </div>
                 </motion.div>
               )}

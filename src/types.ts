@@ -54,8 +54,11 @@ export interface Message {
   text: string;
   timestamp: any;
   status: 'sent' | 'delivered' | 'read';
-  type: 'text' | 'voice' | 'image' | 'support';
+  type: 'text' | 'voice' | 'image' | 'video' | 'document' | 'support';
   audioUrl?: string;
+  fileUrl?: string;
+  fileName?: string;
+  fileSize?: string;
   replyTo?: string;
   isForwarded?: boolean;
   deletedFor?: string[];

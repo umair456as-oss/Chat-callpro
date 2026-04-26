@@ -225,7 +225,7 @@ export default function ChatList({ onSelectChat, selectedChat, searchQuery = '' 
                     key={user.uid}
                     onClick={() => onSelectChat(user)}
                     className={cn(
-                      "flex items-center p-3 cursor-pointer hover:bg-[#F5F6F6] transition-all duration-200 group relative",
+                      "flex items-center p-3 cursor-pointer hover:bg-[#F5F6F6] transition-all duration-200 group relative chat-item",
                       selectedChat?.uid === user.uid && "bg-[#F0F2F5]"
                     )}
                   >

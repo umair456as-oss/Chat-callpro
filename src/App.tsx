@@ -16,7 +16,7 @@ import { getToken, onMessage } from 'firebase/messaging';
 import { reload, updatePassword } from 'firebase/auth';
 import { db, messaging, auth } from './firebase';
 import { handleFirestoreError, OperationType } from './firebaseError';
-import { ShieldAlert, Phone, PhoneOff, Mail, RefreshCw, LogOut } from 'lucide-react';
+import { ShieldAlert, Phone, PhoneOff, Mail, RefreshCw, LogOut, Clock } from 'lucide-react';
 import { cn } from './utils';
 import VoiceCall from './components/VoiceCall';
 import Header from './components/Header';
@@ -34,6 +34,8 @@ export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
   const [showSplash, setShowSplash] = useState(true);
+  const [showGlobalAdWarning, setShowGlobalAdWarning] = useState(false);
+  const [hasDismissedAdWarning, setHasDismissedAdWarning] = useState(false);
   const [selectedChat, setSelectedChat] = useState<UserProfile | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
@@ -402,7 +404,62 @@ export default function App() {
   }
 
   return (
-    <div className={cn(activeTab === 'admin' ? "w-full h-screen flex flex-col bg-[#1e1e1e] relative overflow-hidden" : "layout-shield")}>
+    <div 
+      className={cn(activeTab === 'admin' ? "w-full h-screen flex flex-col bg-[#1e1e1e] relative overflow-hidden" : "layout-shield relative")}
+      onClickCapture={(e) => {
+        // Prevent warning on core UI elements
+        const target = e.target as HTMLElement;
+        const isAppUI = target.closest('button') || target.closest('a') || target.closest('input') || target.closest('.chat-item');
+        
+        if (!hasDismissedAdWarning && !showGlobalAdWarning && !showSplash && activeTab !== 'admin' && activeTab !== 'games' && !isAppUI) {
+          // Only show warning if clicking on a non-UI area (which is often what triggers popunders in these apps)
+          setShowGlobalAdWarning(true);
+        }
+      }}
+    >
+      <AnimatePresence>
+        {showGlobalAdWarning && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-md flex items-center justify-center p-6"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-white rounded-[32px] p-8 max-w-sm w-full text-center shadow-2xl relative overflow-hidden"
+            >
+              <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-[#25D366] to-[#128C7E]" />
+              
+              <div className="w-20 h-20 bg-yellow-50 rounded-2xl flex items-center justify-center text-yellow-600 mx-auto mb-6 transform rotate-3">
+                <Clock size={40} />
+              </div>
+              
+              <h3 className="text-2xl font-bold text-[#111B21] mb-4 Urdu">ضروری ہدایت</h3>
+              
+              <p className="text-[#54656F] text-lg leading-relaxed mb-8 Urdu">
+                اگلے مرحلے پر جانے سے پہلے اشتہار کھلے گا۔ براہ کرم اشتہار پر <span className="text-[#ef4444] font-bold">10 سے 15 سیکنڈ</span> تک رکیں تاکہ آپ کی ارننگ کنفرم ہو سکے۔
+              </p>
+
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowGlobalAdWarning(false);
+                  setHasDismissedAdWarning(true);
+                }}
+                className="w-full bg-[#25D366] text-white font-bold py-4 rounded-2xl shadow-lg hover:bg-[#128C7E] transition-all active:scale-95 text-xl Urdu"
+              >
+                ٹھیک ہے (OK)
+              </button>
+              
+              <p className="mt-4 text-[10px] text-[#8696a0] uppercase tracking-widest font-bold">Smart Link Verification</p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {activeTab !== 'admin' && <Header profile={profile} onSearch={setSearchQuery} logoUrl={appSettings?.appLogoUrl} />}
       
       {/* System Announcement Ticker (Elite Feature) */}
