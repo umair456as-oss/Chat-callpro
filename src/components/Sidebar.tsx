@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { MessageCircle, Wallet, Gamepad2, ShieldCheck, CircleDashed, Users, Phone, LayoutGrid } from 'lucide-react';
+import { MessageCircle, ShieldCheck, CircleDashed, Users, Phone, Compass } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { auth } from '../firebase';
 import { UserProfile } from '../types';
@@ -80,17 +80,17 @@ export default function Sidebar({ profile }: SidebarProps) {
 
         <motion.button
           whileTap={{ scale: 0.95 }}
-          onClick={() => navigate('/games')}
+          onClick={() => navigate('/explore')}
           className="flex flex-col items-center gap-1 min-w-[70px] relative px-2 py-1"
-          title="Earning"
+          title="Explore"
         >
           <div className={cn(
             "px-5 py-1 rounded-full transition-all duration-200",
-            currentPath === '/games' || currentPath === '/wallet' ? "bg-[#D9FDD3] text-[#075E54]" : "text-[#54656F]"
+            currentPath === '/explore' ? "bg-[#D9FDD3] text-[#075E54]" : "text-[#54656F]"
           )}>
-            <LayoutGrid className="w-6 h-6" />
+            <Compass className="w-6 h-6" />
           </div>
-          <span className={cn("text-[11px] font-medium", currentPath === '/games' || currentPath === '/wallet' ? "text-[#075E54]" : "text-[#54656F]")}>Earning</span>
+          <span className={cn("text-[11px] font-medium", currentPath === '/explore' ? "text-[#075E54]" : "text-[#54656F]")}>Explore</span>
         </motion.button>
 
         {(profile.role === 'admin' || profile.email === 'abdulrehmanhabib.com@gmail.com') && (

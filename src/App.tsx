@@ -5,13 +5,13 @@ import Auth from './components/Auth';
 import Sidebar from './components/Sidebar';
 import ChatList from './components/ChatList';
 import ChatWindow from './components/ChatWindow';
-import Wallet from './components/Wallet';
-import Games from './components/Games';
+import Explore from './components/Explore';
 import Status from './components/Status';
 import Contacts from './components/Contacts';
+import CallHistory from './components/CallHistory';
 import AdminPanel from './components/AdminPanel';
 import { UserProfile, AppSettings, Announcement, Call } from './types';
-import { doc, setDoc, onSnapshot, collection, query, orderBy, where, updateDoc, limit } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, collection, query, orderBy, where, updateDoc, limit, getDoc, serverTimestamp } from 'firebase/firestore';
 import { getToken, onMessage } from 'firebase/messaging';
 import { reload, updatePassword } from 'firebase/auth';
 import { db, messaging, auth } from './firebase';
@@ -22,8 +22,6 @@ import VoiceCall from './components/VoiceCall';
 import Header from './components/Header';
 import SplashScreen from './components/SplashScreen';
 import Settings from './components/Settings';
-import SocialAd from './components/SocialAd';
-import GlobalBannerAd from './components/GlobalBannerAd';
 import { motion, AnimatePresence } from 'motion/react';
 
 const DEFAULT_VAPID_KEY = 'BMzgLSxYxgUSrjLkyEYhCqMJflI2nISGKbKU8xBR_vEqbHeNK59_ibPl6mEPpQ5gGve7qQYc7LuZmkz0juS-wRo';
@@ -34,8 +32,6 @@ export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
   const [showSplash, setShowSplash] = useState(true);
-  const [showGlobalAdWarning, setShowGlobalAdWarning] = useState(false);
-  const [hasDismissedAdWarning, setHasDismissedAdWarning] = useState(false);
   const [selectedChat, setSelectedChat] = useState<UserProfile | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
@@ -223,11 +219,22 @@ export default function App() {
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (!snapshot.empty) {
-        const callData = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as Call;
+        const callDoc = snapshot.docs[0];
+        const callData = { id: callDoc.id, ...callDoc.data() } as Call;
+        
         // Only show if not already in a call
         if (!activeCall && !incomingCall) {
           setIncomingCall(callData);
-          // Play ringtone logic could go here
+          
+          // Auto-missed after 30 seconds
+          const timer = setTimeout(async () => {
+             const currentDoc = await getDoc(doc(db, 'calls', callDoc.id));
+             if (currentDoc.exists() && currentDoc.data().status === 'calling') {
+               await updateDoc(doc(db, 'calls', callDoc.id), { status: 'missed' });
+             }
+          }, 30000);
+          
+          return () => clearTimeout(timer);
         }
       } else {
         setIncomingCall(null);
@@ -237,8 +244,22 @@ export default function App() {
     return () => unsubscribe();
   }, [user, activeCall, incomingCall]);
 
+  const [ringtone] = useState(() => new Audio('https://assets.mixkit.co/active_storage/sfx/1350/1350-preview.mp3'));
+
+  useEffect(() => {
+    if (incomingCall) {
+      ringtone.loop = true;
+      ringtone.play().catch(e => console.warn('Ringtone autoplay blocked:', e));
+    } else {
+      ringtone.pause();
+      ringtone.currentTime = 0;
+    }
+  }, [incomingCall, ringtone]);
+
   const handleAcceptCall = () => {
     if (incomingCall) {
+      ringtone.pause();
+      ringtone.currentTime = 0;
       setActiveCall(incomingCall);
       setIncomingCall(null);
     }
@@ -246,6 +267,8 @@ export default function App() {
 
   const handleDeclineCall = async () => {
     if (incomingCall?.id) {
+      ringtone.pause();
+      ringtone.currentTime = 0;
       await updateDoc(doc(db, 'calls', incomingCall.id), { status: 'rejected' });
       setIncomingCall(null);
     }
@@ -370,7 +393,7 @@ export default function App() {
 
   // Active Tab Derived from path
   const path = location.pathname;
-  const activeTab = path === '/admin' ? 'admin' : path === '/status' ? 'status' : path === '/wallet' ? 'wallet' : path === '/games' ? 'games' : path === '/contacts' ? 'contacts' : path === '/settings' ? 'settings' : 'chats';
+  const activeTab = path === '/admin' ? 'admin' : path === '/status' ? 'status' : path === '/explore' ? 'explore' : path === '/contacts' ? 'contacts' : path === '/settings' ? 'settings' : 'chats';
 
   // Email Verification Check Removed
 
@@ -406,60 +429,7 @@ export default function App() {
   return (
     <div 
       className={cn(activeTab === 'admin' ? "w-full h-screen flex flex-col bg-[#1e1e1e] relative overflow-hidden" : "layout-shield relative")}
-      onClickCapture={(e) => {
-        // Prevent warning on core UI elements
-        const target = e.target as HTMLElement;
-        const isAppUI = target.closest('button') || target.closest('a') || target.closest('input') || target.closest('.chat-item');
-        
-        if (!hasDismissedAdWarning && !showGlobalAdWarning && !showSplash && activeTab !== 'admin' && activeTab !== 'games' && !isAppUI) {
-          // Only show warning if clicking on a non-UI area (which is often what triggers popunders in these apps)
-          setShowGlobalAdWarning(true);
-        }
-      }}
     >
-      <AnimatePresence>
-        {showGlobalAdWarning && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-md flex items-center justify-center p-6"
-          >
-            <motion.div 
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              className="bg-white rounded-[32px] p-8 max-w-sm w-full text-center shadow-2xl relative overflow-hidden"
-            >
-              <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-[#25D366] to-[#128C7E]" />
-              
-              <div className="w-20 h-20 bg-yellow-50 rounded-2xl flex items-center justify-center text-yellow-600 mx-auto mb-6 transform rotate-3">
-                <Clock size={40} />
-              </div>
-              
-              <h3 className="text-2xl font-bold text-[#111B21] mb-4 Urdu">ضروری ہدایت</h3>
-              
-              <p className="text-[#54656F] text-lg leading-relaxed mb-8 Urdu">
-                اگلے مرحلے پر جانے سے پہلے اشتہار کھلے گا۔ براہ کرم اشتہار پر <span className="text-[#ef4444] font-bold">10 سے 15 سیکنڈ</span> تک رکیں تاکہ آپ کی ارننگ کنفرم ہو سکے۔
-              </p>
-
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowGlobalAdWarning(false);
-                  setHasDismissedAdWarning(true);
-                }}
-                className="w-full bg-[#25D366] text-white font-bold py-4 rounded-2xl shadow-lg hover:bg-[#128C7E] transition-all active:scale-95 text-xl Urdu"
-              >
-                ٹھیک ہے (OK)
-              </button>
-              
-              <p className="mt-4 text-[10px] text-[#8696a0] uppercase tracking-widest font-bold">Smart Link Verification</p>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {activeTab !== 'admin' && <Header profile={profile} onSearch={setSearchQuery} logoUrl={appSettings?.appLogoUrl} />}
       
       {/* System Announcement Ticker (Elite Feature) */}
@@ -487,12 +457,6 @@ export default function App() {
           </div>
         </div>
       )}
-
-      {/* Social Ad (Top-0, only when not in game) */}
-      {activeTab !== 'admin' && <SocialAd activeTab={activeTab} />}
-      
-      {/* Global Banner Ad (Shows after 10 mins in non-game/wallet/status tabs) */}
-      {activeTab !== 'admin' && <GlobalBannerAd activeTab={activeTab} />}
 
       <div className="flex flex-col flex-1 overflow-hidden">
         {/* Main Content Area */}
@@ -543,8 +507,8 @@ export default function App() {
           </div>
         } />
         <Route path="/status" element={<Status profile={profile} />} />
-        <Route path="/wallet" element={<Wallet profile={profile} />} />
-        <Route path="/games" element={<Games profile={profile} />} />
+        <Route path="/calls" element={<CallHistory profile={profile} onNavigateToChat={(u) => { setSelectedChat(u); navigate('/'); }} />} />
+        <Route path="/explore" element={<Explore />} />
         <Route path="/settings" element={<Settings profile={profile} />} />
         <Route path="/admin" element={
           (profile.role === 'admin' || profile.email === 'abdulrehmanhabib.com@gmail.com') ? 

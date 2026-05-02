@@ -25,7 +25,7 @@ import { highlight, languages } from 'prismjs';
 import 'prismjs/components/prism-json';
 import 'prismjs/themes/prism-tomorrow.css';
 
-type AdminTab = 'users' | 'withdrawals' | 'games' | 'announcements' | 'settings' | 'logs' | 'fraud' | 'support' | 'analytics' | 'build' | 'logo';
+type AdminTab = 'users' | 'announcements' | 'settings' | 'logs' | 'fraud' | 'support' | 'analytics' | 'build' | 'logo';
 
 interface SupportTicket {
   id?: string;
@@ -56,18 +56,11 @@ interface AdminPanelProps {
 
 export default function AdminPanel({ onExit }: AdminPanelProps) {
   const [activeTab, setActiveTab] = useState<AdminTab>('users');
-  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
-  const [gameSettings, setGameSettings] = useState<GameSettings[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
-  const [revenueStats, setRevenueStats] = useState<RevenueStats[]>([]);
-  const [showGameAds, setShowGameAds] = useState(false);
-  const [showAdMobBanner, setShowAdMobBanner] = useState(false);
-  const [showSocialAds, setShowSocialAds] = useState(false);
-  const [adTimer, setAdTimer] = useState(1.3);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
@@ -121,14 +114,6 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
     }
   };
 
-  const updateGameConfig = async (gameId: string, updates: Partial<GameSettings>) => {
-    try {
-      await setDoc(doc(db, 'gameSettings', gameId), updates, { merge: true });
-    } catch (error) {
-      console.error('Game config update error:', error);
-    }
-  };
-
   const handleSaveCode = async () => {
     if (!selectedFile) return;
     setIsSaving(true);
@@ -175,7 +160,7 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
     return () => unsubscribe();
   }, []);
 
-  const tabs: AdminTab[] = ['users', 'analytics', 'withdrawals', 'games', 'announcements', 'support', 'fraud', 'settings', 'logo', 'logs', 'build'];
+  const tabs: AdminTab[] = ['users', 'analytics', 'announcements', 'support', 'fraud', 'settings', 'logo', 'logs', 'build'];
 
   const cycleTab = (direction: 'up' | 'down') => {
     const currentIndex = tabs.indexOf(activeTab);
@@ -227,10 +212,6 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
     initSettings();
 
     // Real-time listeners
-    const unsubW = onSnapshot(query(collection(db, 'withdrawals'), orderBy('timestamp', 'desc')), (snapshot) => {
-      setWithdrawals(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Withdrawal)));
-    }, (error) => handleFirestoreError(error, OperationType.LIST, 'withdrawals'));
-
     const unsubU = onSnapshot(query(collection(db, 'users'), orderBy('lastSeen', 'desc')), (snapshot) => {
       setUsers(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile)));
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'users'));
@@ -238,10 +219,6 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
     const unsubS = onSnapshot(doc(db, 'settings', 'global'), (doc) => {
       if (doc.exists()) setAppSettings(doc.data() as AppSettings);
     }, (error) => handleFirestoreError(error, OperationType.GET, 'settings/global'));
-
-    const unsubG = onSnapshot(collection(db, 'gameSettings'), (snapshot) => {
-      setGameSettings(snapshot.docs.map(doc => ({ ...doc.data() } as GameSettings)));
-    }, (error) => handleFirestoreError(error, OperationType.LIST, 'gameSettings'));
 
     const unsubA = onSnapshot(query(collection(db, 'announcements'), orderBy('createdAt', 'desc')), (snapshot) => {
       setAnnouncements(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Announcement)));
@@ -255,30 +232,12 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
       setActivityLogs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ActivityLog)));
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'activityLogs'));
 
-    const unsubStats = onSnapshot(query(collection(db, 'revenueStats'), orderBy('date', 'desc'), limit(30)), (snapshot) => {
-      setRevenueStats(snapshot.docs.map(doc => ({ ...doc.data() } as RevenueStats)));
-    }, (error) => handleFirestoreError(error, OperationType.LIST, 'revenueStats'));
-
-    const unsubAds = onSnapshot(doc(db, 'admin_settings', 'show_game_ads'), (doc) => {
-      if (doc.exists()) {
-        const data = doc.data();
-        setShowGameAds(data.isAdsEnabled === true);
-        setShowAdMobBanner(data.isAdMobBannerEnabled === true);
-        setShowSocialAds(data.isSocialAdsEnabled === true);
-        if (data.adTimer !== undefined) setAdTimer(data.adTimer);
-      }
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'admin_settings/show_game_ads'));
-
     return () => {
-      unsubW();
       unsubU();
       unsubS();
-      unsubG();
       unsubA();
       unsubT();
       unsubL();
-      unsubStats();
-      unsubAds();
     };
   }, []);
 
@@ -339,124 +298,11 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
     }
   };
 
-  const handleApprove = async (withdrawal: Withdrawal) => {
-    if (!withdrawal.id) return;
-    setLoading(withdrawal.id);
-    try {
-      await runTransaction(db, async (transaction) => {
-        const userRef = doc(db, 'users', withdrawal.userId);
-        const userSnap = await transaction.get(userRef);
-        if (!userSnap.exists()) throw "User does not exist!";
-
-        const currentBalance = userSnap.data().balance || 0;
-        if (currentBalance < withdrawal.amount) throw "Insufficient user balance!";
-
-        // Calculate Tax (Elite Feature)
-        const taxRate = appSettings?.withdrawalTax || 0;
-        const taxAmount = (withdrawal.amount * taxRate) / 100;
-        const netAmount = withdrawal.amount - taxAmount;
-
-        transaction.update(userRef, { balance: currentBalance - withdrawal.amount });
-        transaction.update(doc(db, 'withdrawals', withdrawal.id!), { 
-          status: 'approved',
-          taxAmount,
-          netAmount,
-          auditLog: {
-            ip: '127.0.0.1', // In a real app, get from server
-            device: navigator.userAgent
-          }
-        });
-      });
-    } catch (error) {
-      console.error('Approval error:', error);
-      alert(error);
-    } finally {
-      setLoading(null);
-    }
-  };
-
-  const handleBulkApprove = async () => {
-    if (bulkSelection.length === 0) return;
-    setLoading('bulk');
-    try {
-      for (const id of bulkSelection) {
-        const w = withdrawals.find(w => w.id === id);
-        if (w && w.status === 'pending') {
-          await handleApprove(w);
-        }
-      }
-      setBulkSelection([]);
-    } catch (error) {
-      console.error('Bulk approval error:', error);
-    } finally {
-      setLoading(null);
-    }
-  };
-
-  const handleReject = async (withdrawalId: string) => {
-    setLoading(withdrawalId);
-    try {
-      await updateDoc(doc(db, 'withdrawals', withdrawalId), { status: 'rejected' });
-    } catch (error) {
-      console.error('Rejection error:', error);
-    } finally {
-      setLoading(null);
-    }
-  };
-
   const updateGlobalSetting = async (key: keyof AppSettings, value: any) => {
     try {
       await updateDoc(doc(db, 'settings', 'global'), { [key]: value });
     } catch (error) {
       console.error('Settings update error:', error);
-    }
-  };
-
-  const toggleGame = async (gameId: string, isEnabled: boolean) => {
-    try {
-      await setDoc(doc(db, 'gameSettings', gameId), { isEnabled }, { merge: true });
-    } catch (error) {
-      console.error('Game toggle error:', error);
-    }
-  };
-
-  const updateGameRate = async (gameId: string, earningRate: number) => {
-    try {
-      await setDoc(doc(db, 'gameSettings', gameId), { earningRate }, { merge: true });
-    } catch (error) {
-      console.error('Game rate update error:', error);
-    }
-  };
-
-  const toggleGameAds = async () => {
-    try {
-      await setDoc(doc(db, 'admin_settings', 'show_game_ads'), { isAdsEnabled: !showGameAds }, { merge: true });
-    } catch (error) {
-      console.error('Error toggling game ads:', error);
-    }
-  };
-
-  const toggleAdMobBanner = async () => {
-    try {
-      await setDoc(doc(db, 'admin_settings', 'show_game_ads'), { isAdMobBannerEnabled: !showAdMobBanner }, { merge: true });
-    } catch (error) {
-      console.error('Error toggling admob banner:', error);
-    }
-  };
-
-  const toggleSocialAds = async () => {
-    try {
-      await setDoc(doc(db, 'admin_settings', 'show_game_ads'), { isSocialAdsEnabled: !showSocialAds }, { merge: true });
-    } catch (error) {
-      console.error('Error toggling social ads:', error);
-    }
-  };
-
-  const updateAdTimer = async (val: number) => {
-    try {
-      await setDoc(doc(db, 'admin_settings', 'show_game_ads'), { adTimer: val }, { merge: true });
-    } catch (error) {
-      console.error('Error updating ad timer:', error);
     }
   };
 
@@ -495,12 +341,6 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
     u.phoneNumber?.includes(searchTerm)
   );
 
-  const pendingWithdrawals = withdrawals.filter(w => w.status === 'pending');
-  const totalPendingAmount = pendingWithdrawals.reduce((acc, w) => acc + w.amount, 0);
-  const totalApprovedToday = withdrawals
-    .filter(w => w.status === 'approved' && isToday(toSafeDate(w.timestamp)))
-    .reduce((acc, w) => acc + w.amount, 0);
-
   function isToday(date: Date) {
     if (!date) return false;
     const today = new Date();
@@ -522,20 +362,6 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
           title="Users Explorer"
         >
           <Users size={20} />
-        </button>
-        <button 
-          onClick={() => setActiveTab('withdrawals')}
-          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'withdrawals' ? "text-white border-l-2 border-[#700122]" : "text-[#858585] hover:text-white")}
-          title="Finance Grid"
-        >
-          <Wallet size={20} />
-        </button>
-        <button 
-          onClick={() => setActiveTab('games')}
-          className={cn("p-2 transition-colors flex flex-col items-center gap-1", activeTab === 'games' ? "text-white border-l-2 border-[#700122]" : "text-[#858585] hover:text-white")}
-          title="Game Management"
-        >
-          <Gamepad2 size={20} />
         </button>
         <button 
           onClick={() => setActiveTab('fraud')}
@@ -1165,65 +991,16 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
             >
               <h2 className="text-xl font-bold text-white flex items-center gap-2">
                 <TrendingUp size={20} className="text-[#A01249]" />
-                Revenue & Performance Analytics
+                User Engagement Analytics
               </h2>
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="bg-[#252526] p-4 rounded border border-[#333333]">
-                  <div className="text-[#858585] text-[10px] uppercase font-bold mb-1">Total Revenue</div>
-                  <div className="text-xl font-bold text-green-400">Rs. {revenueStats.reduce((acc, curr) => acc + curr.totalRevenue, 0).toFixed(2)}</div>
-                </div>
-                <div className="bg-[#252526] p-4 rounded border border-[#333333]">
-                  <div className="text-[#858585] text-[10px] uppercase font-bold mb-1">Total Payouts</div>
-                  <div className="text-xl font-bold text-red-400">Rs. {revenueStats.reduce((acc, curr) => acc + curr.totalPayouts, 0).toFixed(2)}</div>
+                  <div className="text-[#858585] text-[10px] uppercase font-bold mb-1">Total Users</div>
+                  <div className="text-xl font-bold text-white">{users.length}</div>
                 </div>
                 <div className="bg-[#252526] p-4 rounded border border-[#333333]">
                   <div className="text-[#858585] text-[10px] uppercase font-bold mb-1">Active Users (5m)</div>
                   <div className="text-xl font-bold text-[#A01249]">{users.filter(u => u.lastSeen && (Date.now() - getTime(u.lastSeen) < 300000)).length}</div>
-                </div>
-                <div className="bg-[#252526] p-4 rounded border border-[#333333]">
-                  <div className="text-[#858585] text-[10px] uppercase font-bold mb-1">Net Profit</div>
-                  <div className="text-xl font-bold text-yellow-400">Rs. {(revenueStats.reduce((acc, curr) => acc + curr.totalRevenue, 0) - revenueStats.reduce((acc, curr) => acc + curr.totalPayouts, 0)).toFixed(2)}</div>
-                </div>
-              </div>
-
-              <div className="bg-[#252526] rounded border border-[#333333] p-6 h-[400px] flex flex-col">
-                <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-sm font-bold text-white">Revenue vs Payouts (Last 30 Days)</h3>
-                  <div className="flex gap-4 text-[10px]">
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2 h-2 bg-green-500 rounded-sm"></div>
-                      <span>Revenue</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2 h-2 bg-red-500 rounded-sm"></div>
-                      <span>Payouts</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex-1 flex items-end gap-2 pb-8 border-b border-[#333333]">
-                  {revenueStats.slice().reverse().map((stat, idx) => (
-                    <div key={idx} className="flex-1 flex flex-col items-center gap-1 group relative h-full">
-                      <div className="flex gap-1 items-end h-full w-full">
-                        <div 
-                          className="flex-1 bg-green-500/40 hover:bg-green-500 transition-all rounded-t-sm"
-                          style={{ height: `${Math.min((stat.totalRevenue / 2000) * 100, 100)}%` }}
-                        />
-                        <div 
-                          className="flex-1 bg-red-500/40 hover:bg-red-500 transition-all rounded-t-sm"
-                          style={{ height: `${Math.min((stat.totalPayouts / 2000) * 100, 100)}%` }}
-                        />
-                      </div>
-                      <div className="absolute bottom-full mb-2 hidden group-hover:block bg-[#252526] border border-[#333333] p-2 rounded text-[8px] z-10 whitespace-nowrap shadow-xl">
-                        <div className="text-[#858585] mb-1">{stat.date}</div>
-                        <div className="text-green-400">Rev: {stat.totalRevenue}</div>
-                        <div className="text-red-400">Pay: {stat.totalPayouts}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex justify-between mt-2 text-[8px] text-[#858585]">
-                  <span>30 Days Ago</span>
-                  <span>Today</span>
                 </div>
               </div>
 
@@ -1282,9 +1059,9 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
                       </div>
                     </div>
                     <div className="p-3 bg-[#1e1e1e] rounded border border-[#333333]">
-                      <div className="text-[10px] text-[#858585] uppercase font-bold mb-1">Total Games Played</div>
+                      <div className="text-[10px] text-[#858585] uppercase font-bold mb-1">System Load</div>
                       <div className="text-lg font-bold text-purple-400">
-                        {users.reduce((acc, u) => acc + (u.totalGamesPlayed || 0), 0)}
+                        Low
                       </div>
                     </div>
                     <div className="p-3 bg-[#1e1e1e] rounded border border-[#333333]">
@@ -1298,322 +1075,6 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
               </div>
             </motion.div>
           )}
-
-            {activeTab === 'withdrawals' && (
-              <motion.div 
-                key="withdrawals"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="space-y-6"
-              >
-                <div className="flex flex-row justify-between items-center gap-4">
-                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                    <Wallet size={20} className="text-green-400" />
-                    Finance Grid
-                  </h2>
-                  <div className="flex flex-row gap-4 w-auto">
-                    {bulkSelection.length > 0 && (
-                      <button 
-                        onClick={handleBulkApprove}
-                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-1.5 rounded text-sm font-bold flex items-center justify-center gap-2 transition-all"
-                      >
-                        <CheckCircle size={16} />
-                        Approve Selected ({bulkSelection.length})
-                      </button>
-                    )}
-                    <div className="bg-[#252526] border border-[#333333] px-4 py-1.5 rounded flex items-center justify-start gap-4 text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[#858585]">Pending:</span>
-                        <span className="text-yellow-400 font-bold">Rs. {totalPendingAmount.toFixed(2)}</span>
-                      </div>
-                      <div className="w-px h-4 bg-[#333333]"></div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[#858585]">Paid Today:</span>
-                        <span className="text-green-400 font-bold">Rs. {totalApprovedToday.toFixed(2)}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-[#252526] rounded border border-[#333333] overflow-hidden shadow-2xl">
-                  <div className="overflow-x-auto block">
-                    <table className="w-full text-xs text-left min-w-[800px]">
-                      <thead className="bg-[#37373d] text-[#858585] uppercase tracking-wider border-b border-[#333333]">
-                        <tr>
-                          <th className="px-4 py-3 w-10">
-                            <input 
-                              type="checkbox" 
-                              onChange={(e) => {
-                                if (e.target.checked) setBulkSelection(pendingWithdrawals.map(w => w.id!));
-                                else setBulkSelection([]);
-                              }}
-                              checked={bulkSelection.length === pendingWithdrawals.length && pendingWithdrawals.length > 0}
-                            />
-                          </th>
-                          <th className="px-4 py-3 font-medium">User ID</th>
-                          <th className="px-4 py-3 font-medium">Amount</th>
-                          <th className="px-4 py-3 font-medium">Method</th>
-                          <th className="px-4 py-3 font-medium">Phone</th>
-                          <th className="px-4 py-3 font-medium">Date</th>
-                          <th className="px-4 py-3 font-medium">Status</th>
-                          <th className="px-4 py-3 font-medium text-right">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[#333333]">
-                        {withdrawals.map((w) => (
-                          <tr key={w.id} className="hover:bg-[#2a2d2e] transition-colors group">
-                            <td className="px-4 py-3">
-                              {w.status === 'pending' && (
-                                <input 
-                                  type="checkbox" 
-                                  checked={bulkSelection.includes(w.id!)}
-                                  onChange={(e) => {
-                                    if (e.target.checked) setBulkSelection([...bulkSelection, w.id!]);
-                                    else setBulkSelection(bulkSelection.filter(id => id !== w.id));
-                                  }}
-                                />
-                              )}
-                            </td>
-                            <td className="px-4 py-3 text-white font-mono">{w.userId}</td>
-                            <td className="px-4 py-3 font-bold text-green-400">Rs. {w.amount.toFixed(2)}</td>
-                            <td className="px-4 py-3">{w.paymentMethod}</td>
-                            <td className="px-4 py-3 font-mono">{w.phoneNumber}</td>
-                            <td className="px-4 py-3 text-[#858585]">{formatChatDate(toSafeDate(w.timestamp))}</td>
-                            <td className="px-4 py-3">
-                              <span className={cn(
-                                "px-2 py-0.5 rounded text-[10px] font-bold uppercase",
-                                w.status === 'pending' ? "bg-yellow-900/30 text-yellow-400 border border-yellow-800/50" :
-                                w.status === 'approved' ? "bg-green-900/30 text-green-400 border border-green-800/50" :
-                                "bg-red-900/30 text-red-400 border border-red-800/50"
-                              )}>
-                                {w.status}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              {w.status === 'pending' && (
-                                <div className="flex justify-end gap-2">
-                                  <button 
-                                    onClick={() => handleApprove(w)}
-                                    disabled={!!loading}
-                                    className="p-1.5 bg-green-600 hover:bg-green-700 text-white rounded transition-colors disabled:opacity-50"
-                                  >
-                                    <CheckCircle size={14} />
-                                  </button>
-                                  <button 
-                                    onClick={() => handleReject(w.id!)}
-                                    disabled={!!loading}
-                                    className="p-1.5 bg-red-600 hover:bg-red-700 text-white rounded transition-colors disabled:opacity-50"
-                                  >
-                                    <XCircle size={14} />
-                                  </button>
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Mobile Card View for Withdrawals (Hidden for Desktop View) */}
-                  <div className="hidden grid grid-cols-1 gap-4 p-4">
-                    {withdrawals.map((w) => (
-                      <div key={w.id} className="bg-[#333333] p-4 rounded-lg border border-[#444444] space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            {w.status === 'pending' && (
-                              <input 
-                                type="checkbox" 
-                                checked={bulkSelection.includes(w.id!)}
-                                onChange={(e) => {
-                                  if (e.target.checked) setBulkSelection([...bulkSelection, w.id!]);
-                                  else setBulkSelection(bulkSelection.filter(id => id !== w.id));
-                                }}
-                              />
-                            )}
-                            <span className="text-white font-mono text-xs truncate max-w-[150px]">{w.userId}</span>
-                          </div>
-                          <span className={cn(
-                            "px-2 py-0.5 rounded text-[10px] font-bold uppercase",
-                            w.status === 'pending' ? "bg-yellow-900/30 text-yellow-400 border border-yellow-800/50" :
-                            w.status === 'approved' ? "bg-green-900/30 text-green-400 border border-green-800/50" :
-                            "bg-red-900/30 text-red-400 border border-red-800/50"
-                          )}>
-                            {w.status}
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2 text-xs">
-                          <div>
-                            <p className="text-[#858585] uppercase text-[10px] font-bold">Amount</p>
-                            <p className="text-green-400 font-bold">Rs. {w.amount.toFixed(2)}</p>
-                          </div>
-                          <div>
-                            <p className="text-[#858585] uppercase text-[10px] font-bold">Method</p>
-                            <p className="text-white">{w.paymentMethod}</p>
-                          </div>
-                          <div>
-                            <p className="text-[#858585] uppercase text-[10px] font-bold">Phone</p>
-                            <p className="text-white font-mono">{w.phoneNumber}</p>
-                          </div>
-                          <div>
-                            <p className="text-[#858585] uppercase text-[10px] font-bold">Date</p>
-                            <p className="text-[#858585]">{formatChatDate(toSafeDate(w.timestamp))}</p>
-                          </div>
-                        </div>
-                        {w.status === 'pending' && (
-                          <div className="flex gap-2 pt-2">
-                            <button 
-                              onClick={() => handleApprove(w)}
-                              disabled={!!loading}
-                              className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded-lg transition-all flex items-center justify-center gap-2"
-                            >
-                              <CheckCircle size={14} /> Approve
-                            </button>
-                            <button 
-                              onClick={() => handleReject(w.id!)}
-                              disabled={!!loading}
-                              className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 rounded-lg transition-all flex items-center justify-center gap-2"
-                            >
-                              <XCircle size={14} /> Reject
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {activeTab === 'games' && (
-              <motion.div 
-                key="games"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="space-y-6"
-              >
-                <div className="flex justify-between items-center">
-                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                    <Gamepad2 size={20} className="text-orange-400" />
-                    Game Management
-                  </h2>
-                  <div className="flex gap-2">
-                    <div className="bg-[#252526] border border-[#333333] rounded-lg p-1 flex items-center gap-2">
-                      <span className="text-[10px] text-[#858585] uppercase font-bold px-2">Bulk Reward:</span>
-                      <input 
-                        type="number" 
-                        id="bulk-reward-input"
-                        placeholder="Rate"
-                        className="w-16 bg-[#1e1e1e] border border-[#333333] rounded px-2 py-1 text-xs text-white outline-none"
-                      />
-                      <button 
-                        onClick={async () => {
-                          const input = document.getElementById('bulk-reward-input') as HTMLInputElement;
-                          const rate = parseFloat(input.value);
-                          if (!isNaN(rate)) {
-                            setLoading('bulk-games');
-                            try {
-                              const batch = writeBatch(db);
-                              gameSettings.forEach(game => {
-                                batch.update(doc(db, 'gameSettings', game.id), { earningRate: rate });
-                              });
-                              await batch.commit();
-                              input.value = '';
-                            } catch (error) {
-                              console.error("Bulk update error:", error);
-                            } finally {
-                              setLoading(null);
-                            }
-                          }
-                        }}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-[10px] font-bold transition-all"
-                      >
-                        Apply All
-                      </button>
-                    </div>
-                    <button 
-                      onClick={() => updateGlobalSetting('isGamesEnabled', !appSettings?.isGamesEnabled)}
-                      className={cn(
-                        "px-4 py-1.5 rounded text-sm font-bold flex items-center gap-2 transition-all",
-                        appSettings?.isGamesEnabled ? "bg-green-600 hover:bg-green-700 text-white" : "bg-red-600 hover:bg-red-700 text-white"
-                      )}
-                    >
-                      <Power size={16} />
-                      {appSettings?.isGamesEnabled ? "Games: Enabled" : "Games: Disabled"}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-6">
-                  {gameSettings.map((game) => (
-                    <div key={game.id} className="bg-[#252526] rounded-xl border border-[#333333] p-6 space-y-4 shadow-lg">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h3 className="text-lg font-bold text-white">{game.name}</h3>
-                          <p className="text-[10px] text-[#858585] uppercase font-bold">ID: {game.id}</p>
-                        </div>
-                        <button 
-                          onClick={() => toggleGame(game.id, !game.isEnabled)}
-                          className={cn(
-                            "p-2 rounded-full transition-all",
-                            game.isEnabled ? "bg-green-900/30 text-green-400" : "bg-red-900/30 text-red-400"
-                          )}
-                        >
-                          <Power size={18} />
-                        </button>
-                      </div>
-
-                      <div className="space-y-3">
-                        <div>
-                          <label className="block text-[10px] text-[#858585] uppercase font-bold mb-1">Reward Price (Pts)</label>
-                          <div className="flex items-center gap-2">
-                            <button 
-                              onClick={() => updateGameRate(game.id, Math.max(0, game.earningRate - 0.1))}
-                              className="w-8 h-8 rounded bg-[#333333] text-white flex items-center justify-center hover:bg-[#444444]"
-                            >
-                              -
-                            </button>
-                            <input 
-                              type="number" 
-                              className="w-full bg-[#1e1e1e] border border-[#333333] focus:border-blue-500 rounded px-3 py-1.5 text-sm text-white outline-none text-center"
-                              value={game.earningRate}
-                              onChange={(e) => updateGameRate(game.id, parseFloat(e.target.value))}
-                            />
-                            <button 
-                              onClick={() => updateGameRate(game.id, game.earningRate + 0.1)}
-                              className="w-8 h-8 rounded bg-[#333333] text-white flex items-center justify-center hover:bg-[#444444]"
-                            >
-                              +
-                            </button>
-                            <span className="text-xs text-[#858585]">/win</span>
-                          </div>
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-[#858585] uppercase font-bold mb-1">Daily Play Limit</label>
-                          <input 
-                            type="number" 
-                            className="w-full bg-[#1e1e1e] border border-[#333333] focus:border-blue-500 rounded px-3 py-1.5 text-sm text-white outline-none"
-                            value={game.dailyLimit}
-                            onChange={(e) => setDoc(doc(db, 'gameSettings', game.id), { dailyLimit: parseInt(e.target.value) }, { merge: true })}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-[#858585] uppercase font-bold mb-1">Entry Fee (PKR)</label>
-                          <input 
-                            type="number" 
-                            className="w-full bg-[#1e1e1e] border border-[#333333] focus:border-blue-500 rounded px-3 py-1.5 text-sm text-white outline-none"
-                            value={game.price || 0}
-                            onChange={(e) => setDoc(doc(db, 'gameSettings', game.id), { price: parseFloat(e.target.value) }, { merge: true })}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </motion.div>
-            )}
 
             {activeTab === 'announcements' && (
               <motion.div 
@@ -1783,83 +1244,7 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
 
                 <div className="space-y-6 bg-[#252526] p-8 rounded-2xl border border-[#333333] shadow-2xl">
                   <div className="flex flex-col gap-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="text-white font-medium">AdMob Rewarded Ads</h4>
-                        <p className="text-xs text-[#858585]">Enable/Disable Google AdMob rewarded video ads</p>
-                      </div>
-                      <button 
-                        onClick={() => updateGlobalSetting('isAdMobEnabled', !appSettings?.isAdMobEnabled)}
-                        className={cn(
-                          "w-12 h-6 rounded-full transition-all relative",
-                          appSettings?.isAdMobEnabled ? "bg-yellow-600" : "bg-[#3c3c3c]"
-                        )}
-                      >
-                        <div className={cn(
-                          "absolute top-1 w-4 h-4 bg-white rounded-full transition-all",
-                          appSettings?.isAdMobEnabled ? "right-1" : "left-1"
-                        )}></div>
-                      </button>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="text-white font-medium">AdMob Banner Ads</h4>
-                        <p className="text-xs text-[#858585]">Show 300x250 AdMob banner ads in game modals</p>
-                      </div>
-                      <button 
-                        onClick={toggleAdMobBanner}
-                        className={cn(
-                          "w-12 h-6 rounded-full transition-all relative",
-                          showAdMobBanner ? "bg-orange-600" : "bg-[#3c3c3c]"
-                        )}
-                      >
-                        <div className={cn(
-                          "absolute top-1 w-4 h-4 bg-white rounded-full transition-all",
-                          showAdMobBanner ? "right-1" : "left-1"
-                        )}></div>
-                      </button>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="text-white font-medium">Game Modal Ads (Adsterra)</h4>
-                        <p className="text-xs text-[#858585]">Show 300x250 banner ads in game modals</p>
-                      </div>
-                      <button 
-                        onClick={toggleGameAds}
-                        className={cn(
-                          "w-12 h-6 rounded-full transition-all relative",
-                          showGameAds ? "bg-blue-600" : "bg-[#3c3c3c]"
-                        )}
-                      >
-                        <div className={cn(
-                          "absolute top-1 w-4 h-4 bg-white rounded-full transition-all",
-                          showGameAds ? "right-1" : "left-1"
-                        )}></div>
-                      </button>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="text-white font-medium">Game Social Ads (Ghost Script)</h4>
-                        <p className="text-xs text-[#858585]">Enable/Disable GameAdController's social script</p>
-                      </div>
-                      <button 
-                        onClick={toggleSocialAds}
-                        className={cn(
-                          "w-12 h-6 rounded-full transition-all relative",
-                          showSocialAds ? "bg-purple-600" : "bg-[#3c3c3c]"
-                        )}
-                      >
-                        <div className={cn(
-                          "absolute top-1 w-4 h-4 bg-white rounded-full transition-all",
-                          showSocialAds ? "right-1" : "left-1"
-                        )}></div>
-                      </button>
-                    </div>
-
-                    <div className="pt-6 border-t border-[#333333]">
+                    <div className="pt-6">
                       <h4 className="text-white font-medium mb-4">Push Notifications</h4>
                       <div className="space-y-4">
                         <div>
@@ -1879,50 +1264,7 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
                       </div>
                     </div>
 
-                    {showGameAds && (
-                      <div className="flex flex-col gap-4 bg-[#1e1e1e] p-6 rounded-xl border border-[#333333]">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h5 className="text-white text-sm font-medium">Ad Timer (Seconds)</h5>
-                            <p className="text-[10px] text-[#858585]">How long the ad stays visible (0-30s)</p>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <button 
-                              onClick={() => updateAdTimer(Math.max(0.1, adTimer - 0.1))}
-                              className="w-8 h-8 rounded-lg bg-[#333333] text-white flex items-center justify-center hover:bg-[#444444] transition-colors"
-                            >
-                              -
-                            </button>
-                            <span className="text-blue-500 font-bold min-w-[50px] text-center text-lg">
-                              {adTimer.toFixed(1)}s
-                            </span>
-                            <button 
-                              onClick={() => updateAdTimer(Math.min(30, adTimer + 0.1))}
-                              className="w-8 h-8 rounded-lg bg-[#333333] text-white flex items-center justify-center hover:bg-[#444444] transition-colors"
-                            >
-                              +
-                            </button>
-                          </div>
-                        </div>
-                        
-                        <div className="flex gap-2">
-                          {[1.3, 5, 10, 15].map((val) => (
-                            <button
-                              key={val}
-                              onClick={() => updateAdTimer(val)}
-                              className={cn(
-                                "px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all",
-                                adTimer === val 
-                                  ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20" 
-                                  : "bg-[#333333] text-[#858585] hover:bg-[#444444] hover:text-white"
-                              )}
-                            >
-                              {val}s {val === 1.3 && "(Recommended)"}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+
                   </div>
 
                   <div className="flex items-center justify-between">
@@ -2019,104 +1361,6 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <h4 className="text-white font-medium">Withdrawal Tax (%)</h4>
-                    <p className="text-xs text-[#858585]">Service fee automatically deducted from withdrawals</p>
-                    <input 
-                      type="number" 
-                      className="w-full bg-[#1e1e1e] border border-[#333333] focus:border-blue-500 rounded px-3 py-1.5 text-sm text-white outline-none"
-                      value={appSettings?.withdrawalTax || 0}
-                      onChange={(e) => updateGlobalSetting('withdrawalTax', parseFloat(e.target.value))}
-                    />
-                  </div>
-
-                  <div className="pt-6 border-t border-[#333333] space-y-6">
-                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                      <Shield size={20} className="text-purple-400" />
-                      Alpha AI Bot Configuration
-                    </h3>
-                    
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="text-white font-medium">Auto-Reply Bot</h4>
-                        <p className="text-xs text-[#858585]">Enable/Disable automated chat responses</p>
-                      </div>
-                      <button 
-                        onClick={() => updateGlobalSetting('botAutoReplyEnabled', !appSettings?.botAutoReplyEnabled)}
-                        className={cn(
-                          "w-12 h-6 rounded-full transition-all relative",
-                          appSettings?.botAutoReplyEnabled ? "bg-purple-600" : "bg-[#3c3c3c]"
-                        )}
-                      >
-                        <div className={cn(
-                          "absolute top-1 w-4 h-4 bg-white rounded-full transition-all",
-                          appSettings?.botAutoReplyEnabled ? "right-1" : "left-1"
-                        )}></div>
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-6">
-                      <div className="space-y-2">
-                        <h4 className="text-white font-medium">Bot Display Name</h4>
-                        <input 
-                          type="text" 
-                          className="w-full bg-[#1e1e1e] border border-[#333333] focus:border-blue-500 rounded px-3 py-1.5 text-sm text-white outline-none"
-                          value={appSettings?.botName || 'Alpha Bot'}
-                          onChange={(e) => updateGlobalSetting('botName', e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <h4 className="text-white font-medium">Welcome Message</h4>
-                        <input 
-                          type="text" 
-                          className="w-full bg-[#1e1e1e] border border-[#333333] focus:border-blue-500 rounded px-3 py-1.5 text-sm text-white outline-none"
-                          value={appSettings?.botWelcomeMessage || 'Hello! How can I help you today?'}
-                          onChange={(e) => updateGlobalSetting('botWelcomeMessage', e.target.value)}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between p-4 bg-blue-900/20 border border-blue-800/50 rounded-xl">
-                    <div>
-                      <h4 className="text-blue-400 font-bold">Database Backup</h4>
-                      <p className="text-[10px] text-blue-400/70">Create a full snapshot of all collections</p>
-                    </div>
-                    <button 
-                      onClick={() => alert('Backup started... Check logs for progress.')}
-                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-xs font-bold flex items-center gap-2"
-                    >
-                      <Database size={14} />
-                      One-Click Backup
-                    </button>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="text-white font-medium">Jackpot Hour (Double Earnings)</h4>
-                      <p className="text-xs text-[#858585]">Double all game rewards for 1 hour</p>
-                    </div>
-                    <button 
-                      onClick={() => {
-                        const isJackpot = !appSettings?.isJackpotHour;
-                        const endTime = isJackpot ? new Date(Date.now() + 3600000).toISOString() : null;
-                        updateDoc(doc(db, 'settings', 'global'), { 
-                          isJackpotHour: isJackpot,
-                          jackpotEndTime: endTime
-                        });
-                      }}
-                      className={cn(
-                        "w-12 h-6 rounded-full transition-all relative",
-                        appSettings?.isJackpotHour ? "bg-orange-600" : "bg-[#3c3c3c]"
-                      )}
-                    >
-                      <div className={cn(
-                        "absolute top-1 w-4 h-4 bg-white rounded-full transition-all",
-                        appSettings?.isJackpotHour ? "right-1" : "left-1"
-                      )}></div>
-                    </button>
-                  </div>
-
                   <div className="space-y-4">
                     <h4 className="text-white font-medium">System Ticker Messages</h4>
                     <p className="text-xs text-[#858585]">Messages that scroll at the very top of the app</p>
@@ -2159,27 +1403,9 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <h4 className="text-white font-medium">Ad Frequency</h4>
-                    <p className="text-xs text-[#858585] mb-2">Number of ads shown to users per day</p>
-                    <input 
-                      type="range" 
-                      min="0" 
-                      max="50" 
-                      className="w-full h-1.5 bg-[#3c3c3c] rounded-lg appearance-none cursor-pointer accent-blue-500"
-                      value={appSettings?.adFrequency || 0}
-                      onChange={(e) => updateGlobalSetting('adFrequency', parseInt(e.target.value))}
-                    />
-                    <div className="flex justify-between text-[10px] text-[#858585] font-bold">
-                      <span>0 (Disabled)</span>
-                      <span>Current: {appSettings?.adFrequency}</span>
-                      <span>50 (Max)</span>
-                    </div>
-                  </div>
-
                   <div id="bottom-settings" className="pt-4 border-t border-[#333333]">
                     <p className="text-[10px] text-[#858585] text-center italic">
-                      Swipe up/down on the sidebar to quickly switch between admin tabs.
+                      Admin Panel for Alpha Chat. Standard edition.
                     </p>
                   </div>
                 </div>
@@ -2335,7 +1561,7 @@ export default function AdminPanel({ onExit }: AdminPanelProps) {
             </div>
             <div className="flex items-center gap-1">
               <TrendingUp size={12} />
-              <span>Revenue: Rs. {revenueStats[0]?.totalRevenue || 0}</span>
+              <span>System Efficiency: Optimal</span>
             </div>
           </div>
         </div>

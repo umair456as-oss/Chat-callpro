@@ -91,7 +91,12 @@ service cloud.firestore {
              data.receiverId is string &&
              data.callerName is string &&
              data.status in ['calling', 'ongoing', 'ended', 'missed', 'rejected'] &&
-             data.type in ['voice', 'video'];
+             data.type in ['voice', 'video'] &&
+             (!('participants' in data) || data.participants is list) &&
+             (!('offer' in data) || data.offer is map) &&
+             (!('answer' in data) || data.answer is map) &&
+             (!('timestamp' in data) || data.timestamp is timestamp) &&
+             (!('callerPhoto' in data) || data.callerPhoto == null || data.callerPhoto is string);
     }
 
     function isValidAdminSetting(data) {
@@ -183,19 +188,17 @@ service cloud.firestore {
     }
 
     match /calls/{callId} {
-      allow read: if isAuthenticated() && (resource.data.callerId == request.auth.uid || resource.data.receiverId == request.auth.uid || isAdmin());
+      allow read: if isAuthenticated() && (resource.data.callerId == request.auth.uid || resource.data.receiverId == request.auth.uid || (resource.data.participants is list && request.auth.uid in resource.data.participants) || isAdmin());
       allow create: if isAuthenticated() && request.resource.data.callerId == request.auth.uid && isValidCall(request.resource.data);
-      allow update: if isAuthenticated() && (resource.data.callerId == request.auth.uid || resource.data.receiverId == request.auth.uid || isAdmin());
-      allow delete: if isAdmin();
+      allow update: if isAuthenticated() && (resource.data.callerId == request.auth.uid || resource.data.receiverId == request.auth.uid || (resource.data.participants is list && request.auth.uid in resource.data.participants) || isAdmin());
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.callerId == request.auth.uid);
 
       match /offerCandidates/{candidateId} {
-        allow read: if isAuthenticated() && (get(/databases/$(database)/documents/calls/$(callId)).data.callerId == request.auth.uid || get(/databases/$(database)/documents/calls/$(callId)).data.receiverId == request.auth.uid || isAdmin());
-        allow create: if isAuthenticated() && get(/databases/$(database)/documents/calls/$(callId)).data.callerId == request.auth.uid;
+        allow read, write: if isAuthenticated();
       }
 
       match /answerCandidates/{candidateId} {
-        allow read: if isAuthenticated() && (get(/databases/$(database)/documents/calls/$(callId)).data.callerId == request.auth.uid || get(/databases/$(database)/documents/calls/$(callId)).data.receiverId == request.auth.uid || isAdmin());
-        allow create: if isAuthenticated() && get(/databases/$(database)/documents/calls/$(callId)).data.receiverId == request.auth.uid;
+        allow read, write: if isAuthenticated();
       }
     }
   }
