@@ -1,5 +1,5 @@
-import React from 'react';
-import { motion } from 'motion/react';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   Book, 
   Heart, 
@@ -10,9 +10,14 @@ import {
   Calendar, 
   MapPin, 
   Award,
-  BookOpen
+  BookOpen,
+  Cloud,
+  Search,
+  LayoutGrid
 } from 'lucide-react';
 import { cn } from '../utils';
+import QuranReader from './QuranReader';
+import HadithReader from './HadithReader';
 
 interface ExploreItem {
   id: string;
@@ -20,10 +25,11 @@ interface ExploreItem {
   urduTitle: string;
   icon: React.ReactNode;
   color: string;
-  onClick: () => void;
 }
 
 export default function Explore() {
+  const [showQuran, setShowQuran] = useState(false);
+  const [showHadith, setShowHadith] = useState(false);
   const categories: ExploreItem[] = [
     {
       id: 'quran',
@@ -31,7 +37,6 @@ export default function Explore() {
       urduTitle: 'قرآن پاک',
       icon: <Book size={32} />,
       color: 'bg-emerald-500',
-      onClick: () => window.open('https://quran.com', '_blank')
     },
     {
       id: 'hadith',
@@ -39,7 +44,6 @@ export default function Explore() {
       urduTitle: 'حدیث مبارکہ',
       icon: <BookOpen size={32} />,
       color: 'bg-blue-500',
-      onClick: () => window.open('https://sunnah.com', '_blank')
     },
     {
       id: 'prayer',
@@ -47,7 +51,6 @@ export default function Explore() {
       urduTitle: 'نماز کے اوقات',
       icon: <Moon size={32} />,
       color: 'bg-purple-500',
-      onClick: () => alert('Prayer times feature coming soon!')
     },
     {
       id: 'qibla',
@@ -55,7 +58,6 @@ export default function Explore() {
       urduTitle: 'قبلہ رخ',
       icon: <Compass size={32} />,
       color: 'bg-amber-500',
-      onClick: () => window.open('https://qiblafinder.withgoogle.com/', '_blank')
     },
     {
       id: 'duas',
@@ -63,7 +65,6 @@ export default function Explore() {
       urduTitle: 'دعائیں',
       icon: <Heart size={32} />,
       color: 'bg-rose-500',
-      onClick: () => alert('Duas collection coming soon!')
     },
     {
       id: 'nasheeds',
@@ -71,7 +72,6 @@ export default function Explore() {
       urduTitle: 'نعتیں',
       icon: <Music size={32} />,
       color: 'bg-indigo-500',
-      onClick: () => alert('Nasheeds player coming soon!')
     },
     {
       id: 'bayanat',
@@ -79,7 +79,6 @@ export default function Explore() {
       urduTitle: 'بیانات',
       icon: <PlayCircle size={32} />,
       color: 'bg-cyan-500',
-      onClick: () => alert('Bayanat repository coming soon!')
     },
     {
       id: 'calendar',
@@ -87,7 +86,6 @@ export default function Explore() {
       urduTitle: 'اسلامی کیلنڈر',
       icon: <Calendar size={32} />,
       color: 'bg-teal-500',
-      onClick: () => window.open('https://www.islamicfinder.org/islamic-calendar/', '_blank')
     },
     {
       id: 'mosques',
@@ -95,7 +93,6 @@ export default function Explore() {
       urduTitle: 'قریبی مساجد',
       icon: <MapPin size={32} />,
       color: 'bg-orange-500',
-      onClick: () => window.open('https://www.google.com/maps/search/mosques+near+me', '_blank')
     },
     {
       id: 'tasbeeh',
@@ -103,16 +100,52 @@ export default function Explore() {
       urduTitle: 'تسبیح کاؤنٹر',
       icon: <Award size={32} />,
       color: 'bg-lime-500',
-      onClick: () => alert('Tasbeeh counter coming soon!')
     }
   ];
+
+  const handleItemClick = (id: string) => {
+    switch (id) {
+      case 'quran':
+        setShowQuran(true);
+        break;
+      case 'hadith':
+        setShowHadith(true);
+        break;
+      case 'qibla':
+        window.open('https://qiblafinder.withgoogle.com/', '_blank');
+        break;
+      case 'calendar':
+        window.open('https://www.islamicfinder.org/islamic-calendar/', '_blank');
+        break;
+      case 'mosques':
+        window.open('https://www.google.com/maps/search/mosques+near+me', '_blank');
+        break;
+      default:
+        alert(`${id.charAt(0).toUpperCase() + id.slice(1)} feature coming soon!`);
+    }
+  };
+
+  if (showQuran) {
+    return <QuranReader onBack={() => setShowQuran(false)} />;
+  }
+
+  if (showHadith) {
+    return <HadithReader onBack={() => setShowHadith(false)} />;
+  }
 
   return (
     <div className="flex flex-col h-full bg-[#f0f2f5] dark:bg-[#111b21] overflow-hidden">
       {/* Header */}
       <div className="bg-[#00a884] dark:bg-[#202c33] p-6 pt-12 pb-8 shadow-lg z-10">
-        <h1 className="text-3xl font-black text-white Urdu text-center">ایکسپلور (Explore)</h1>
-        <p className="text-white/80 text-center Urdu mt-2 text-sm">اسلامی معلومات اور خدمات تک رسائی</p>
+        <div className="flex justify-between items-center mb-4">
+          <div>
+            <h1 className="text-3xl font-black text-white Urdu">ایکسپلور (Explore)</h1>
+            <p className="text-white/80 Urdu text-sm">اسلامی معلومات اور خدمات تک رسائی</p>
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center text-white">
+            <LayoutGrid size={24} />
+          </div>
+        </div>
       </div>
 
       {/* Grid Content */}
@@ -124,7 +157,7 @@ export default function Explore() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
-              onClick={item.onClick}
+              onClick={() => handleItemClick(item.id)}
               className="group relative flex flex-col items-center justify-center p-6 bg-white dark:bg-[#202c33] rounded-[32px] shadow-sm hover:shadow-xl transition-all active:scale-95 border border-gray-100 dark:border-white/5"
             >
               <div className={cn(
